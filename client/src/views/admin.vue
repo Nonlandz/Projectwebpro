@@ -16,12 +16,21 @@
         </div>
       </section>
 
-      <!-- <div v-if="selectedPost">
-        <h2 class="text-2xl font-bold mt-4">Post Details:</h2>
-        <p><strong>Title:</strong> {{ selectedPost.title }}</p>
-        <p><strong>Status:</strong> {{ selectedPost.status }}</p>
-        <p><strong>Detail:</strong> {{ selectedPost.detail }}</p>
-      </div> -->
+      <section class="surface admin-panel mt-5">
+        <h2 class="section-title text-xl">Category requests</h2>
+        <button class="button-secondary mt-2" @click="loadCategoryRequests">Refresh requests</button>
+        <p v-if="categoryError" role="alert">{{ categoryError }}</p>
+        <p v-if="!categoryRequests.length && !categoryError" class="section-subtitle">No pending requests.</p>
+        <ul>
+          <li v-for="request in categoryRequests" :key="request.id" class="item-row">
+            <div><strong>{{ request.name }}</strong><p class="text-sm text-slate-500">Requested by {{ request.User?.UserInfo?.firstName || 'Member' }} {{ request.User?.UserInfo?.lastName || '' }}</p></div>
+            <div class="item-actions">
+              <button class="button-primary" :disabled="reviewingCategory === request.id" @click="reviewCategory(request, 'approved')">Approve</button>
+              <button class="button-secondary" :disabled="reviewingCategory === request.id" @click="reviewCategory(request, 'rejected')">Reject</button>
+            </div>
+          </li>
+        </ul>
+      </section>
 
       <section class="surface admin-panel mt-5">
         <div class="flex items-baseline justify-between gap-4"><h2 class="section-title text-xl">Posts</h2><span class="text-sm text-slate-500">{{ posts.length }} shown</span></div>
@@ -63,6 +72,7 @@ export default {
     return {
       tagName: "",
       tags: [],
+      categoryRequests: [], categoryError: '', reviewingCategory: null,
       posts: [],
       offset: 0, hasNext: false, loadingPosts: false, postError: "",
       selectedPost: null, // Track the selected post
@@ -71,9 +81,23 @@ export default {
   mounted() {
     this.checkAdmin();
     this.getTags();
+    this.loadCategoryRequests();
     this.getPosts();
   },
   methods: {
+    async loadCategoryRequests() {
+      try { this.categoryError = ''; const { data } = await axios.get('/tags/requests'); this.categoryRequests = data; }
+      catch { this.categoryError = 'Unable to load requests. Please refresh.'; }
+    },
+    async reviewCategory(request, status) {
+      if (this.reviewingCategory) return;
+      this.reviewingCategory = request.id;
+      try {
+        await axios.put(`/tags/requests/${request.id}`, { status });
+        await Promise.all([this.loadCategoryRequests(), this.getTags()]);
+      } catch (error) { this.categoryError = error.response?.data?.message || 'Unable to review request.'; }
+      finally { this.reviewingCategory = null; }
+    },
     async addTag() {
       try {
         const response = await axios.post("/tags/", {

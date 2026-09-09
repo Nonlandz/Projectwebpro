@@ -11,6 +11,7 @@ import { deletePost, pageArgs } from "../src/shared.js";
 import { prisma } from "../src/db.js";
 import posts from "../src/post.js";
 import users from "../src/user.js";
+import tags from "../src/tag.js";
 
 process.env.TOKEN = "test-only-secret-never-used-in-production";
 const account = { id: "alice", role: "customer", sessionVersion: 0 };
@@ -25,6 +26,41 @@ async function withServer(router, action) {
   });
   try { await action(request); } finally { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); }
 }
+
+test('category requests use authenticated identity and only admins can approve once', async () => {
+  const originalUser = prisma.user.findUnique, originalFind = prisma.tag.findFirst;
+  const originalCreate = prisma.categoryRequest.create, originalTransaction = prisma.$transaction;
+  let submitted, reviewed = false, created = 0;
+  prisma.user.findUnique = authDb.user.findUnique;
+  prisma.tag.findFirst = async () => null;
+  prisma.categoryRequest.create = async ({ data }) => { submitted = data; return { id: 'r', ...data }; };
+  prisma.$transaction = async action => action({
+    categoryRequest: {
+      updateMany: async () => { if (reviewed) return { count: 0 }; reviewed = true; return { count: 1 }; },
+      findUnique: async () => ({ id: 'r', name: 'Furniture' }),
+    },
+    tag: { findFirst: async () => null, create: async () => { created++; } },
+  });
+  try {
+    await withServer(tags, async request => {
+      assert.equal((await request('/requests', 'POST', { name: 'Furniture' }, null)).status, 401);
+      assert.equal((await request('/requests', 'POST', { name: '  ' })).status, 400);
+      assert.equal((await request('/requests', 'POST', { name: ' Furniture ', userId: 'bob' })).status, 201);
+      assert.equal(submitted.userId, 'alice');
+      assert.equal(submitted.normalizedName, 'furniture');
+      assert.equal((await request('/requests')).status, 403);
+      assert.equal((await request('/requests/r', 'PUT', { status: 'approved' })).status, 403);
+      account.role = 'admin';
+      assert.equal((await request('/requests/r', 'PUT', { status: 'bad' })).status, 400);
+      assert.equal((await request('/requests/r', 'PUT', { status: 'approved' })).status, 200);
+      assert.equal((await request('/requests/r', 'PUT', { status: 'approved' })).status, 409);
+      assert.equal(created, 1);
+    });
+  } finally {
+    account.role = 'customer'; prisma.user.findUnique = originalUser; prisma.tag.findFirst = originalFind;
+    prisma.categoryRequest.create = originalCreate; prisma.$transaction = originalTransaction;
+  }
+});
 
 test("authentication rejects missing, tampered, expired, revoked and nonexistent sessions", async () => {
   const router = express.Router(); router.use(createAuth(authDb)); router.get("/", (req, res) => res.json(req.user));

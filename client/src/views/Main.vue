@@ -20,6 +20,14 @@ import { onMounted } from 'vue';
             {{ tag.name }}
           </button>        </div>
         <!-- Search results info -->
+        <form class="surface mt-4 p-4" @submit.prevent="requestCategory">
+          <label for="category-request" class="block text-sm font-semibold">Missing a category? Request a new one</label>
+          <div class="flex flex-wrap gap-2 mt-2">
+            <input id="category-request" v-model="requestedCategory" maxlength="50" required placeholder="e.g. Furniture" class="flex-1" />
+            <button class="button-secondary" :disabled="requestingCategory || !requestedCategory.trim()">{{ requestingCategory ? 'Sending…' : 'Send request' }}</button>
+          </div>
+          <p class="mt-2 text-xs text-slate-500" role="status">{{ categoryRequestMessage || 'An admin will review your suggestion before it becomes available.' }}</p>
+        </form>
         <div v-if="searchQuery" class="w-full mt-3 text-center text-gray-600">
           <p>ผลการค้นหาสำหรับ: "<strong>{{ searchQuery }}</strong>" ({{ posts.length }} รายการ)</p>
           <button @click="clearSearch" class="text-blue-500 underline ml-2">ล้างการค้นหา</button>
@@ -292,6 +300,7 @@ export default {
     return {
       v$: useValidate(),
       tags: [],
+      requestedCategory: '', requestingCategory: false, categoryRequestMessage: '',
       openButton: false,
       selectedImages: [],
       imagePreviews: [],
@@ -336,6 +345,16 @@ export default {
     }
   },
   methods: {
+    async requestCategory() {
+      if (this.requestingCategory) return;
+      this.requestingCategory = true; this.categoryRequestMessage = '';
+      try {
+        await axios.post('/tags/requests', { name: this.requestedCategory });
+        this.requestedCategory = '';
+        this.categoryRequestMessage = 'Request sent! An admin will review your category.';
+      } catch (error) { this.categoryRequestMessage = error.response?.data?.message || 'Unable to send request. Please try again.'; }
+      finally { this.requestingCategory = false; }
+    },
     assetUrl,
     async showAlert(type, text) {
       const Toast = await this.$swal.mixin({

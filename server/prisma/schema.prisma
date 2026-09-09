@@ -26,6 +26,7 @@ model User {
   SentMessages     Message[] @relation("SentMessages")
   ReceivedMessages Message[] @relation("ReceivedMessages")
   PasswordResets PasswordReset[]
+  CategoryRequests CategoryRequest[]
 }
 
 model UserInfo {
@@ -107,6 +108,17 @@ model Comment {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model CategoryRequest {
+  id String @id @default(cuid())
+  name String
+  normalizedName String @unique
+  userId String
+  User User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status String @default("pending")
+  createdAt DateTime @default(now())
+  reviewedAt DateTime?
 }
 
 model PostImage {
