@@ -5,7 +5,7 @@ import vm from "node:vm";
 
 function component(api) {
   const source = readFileSync(new URL("../../client/src/views/Chat.vue", import.meta.url), "utf8").split("<script>")[1].split("</script>")[0].replace(/^import .*;$/gm, "").replace("export default", "result =");
-  const context = { axios: api, Layout: {}, Nav: {}, localStorage: { getItem: () => '{"id":"alice"}' }, document: { hidden: false }, result: null };
+  const context = { axios: api, assetUrl: url => url, Layout: {}, Nav: {}, localStorage: { getItem: () => '{"id":"alice"}' }, document: { hidden: false }, result: null };
   vm.runInNewContext(source, context);
   const definition = context.result;
   const instance = { ...definition.data(), $nextTick: async () => {}, $refs: {}, activeUser: { id: "bob" } };

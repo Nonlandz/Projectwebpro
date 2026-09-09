@@ -147,6 +147,9 @@ test("post deletion removes dependencies atomically and rejects other owners", a
 
 test("public post filtering, owner scopes and moderation are enforced by routes", async () => {
   const originalUser = prisma.user.findUnique, originalPosts = prisma.post.findMany, originalUpdate = prisma.post.update;
+  const originalUpdateMany = prisma.post.updateMany;
+  let approvalWrite;
+  prisma.post.updateMany = async args => { approvalWrite = args; return { count: 1 }; };
   let query, updates = 0;
   prisma.user.findUnique = authDb.user.findUnique;
   prisma.post.findMany = async args => { query = args; return []; };
@@ -159,12 +162,16 @@ test("public post filtering, owner scopes and moderation are enforced by routes"
       assert.equal((await request("/?userId=bob")).status, 403);
       assert.equal((await request("/p", "PUT", { status: "approve" })).status, 403);
       assert.equal(updates, 0);
+      assert.equal(approvalWrite, undefined);
       account.role = "admin";
       assert.equal((await request("/p", "PUT", { status: "invalid" })).status, 400);
       assert.equal((await request("/p", "PUT", { status: "approve" })).status, 200);
       assert.equal(updates, 1);
+      assert.deepEqual(approvalWrite.where, { id: 'p', approvedAt: null });
+      assert.ok(approvalWrite.data.approvedAt instanceof Date);
+      assert.equal(approvalWrite.data.status, 'approve');
     });
-  } finally { account.role = "customer"; prisma.user.findUnique = originalUser; prisma.post.findMany = originalPosts; prisma.post.update = originalUpdate; }
+  } finally { account.role = "customer"; prisma.user.findUnique = originalUser; prisma.post.findMany = originalPosts; prisma.post.update = originalUpdate; prisma.post.updateMany = originalUpdateMany; }
 });
 
 test("public profiles expose names and phone but exclude private account details", async () => {

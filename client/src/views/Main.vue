@@ -111,6 +111,7 @@ import { onMounted } from 'vue';
             }}</span>
           </div>
           <p class="mt-5">{{ post.title }}</p>
+          <ApprovalTime :value="post.approvedAt" />
           <div v-if="post.imageUrls?.length" class="feed-post-gallery w-full mt-5">
             <img
               :src="post.imageUrls[post.activeImage || 0]"
@@ -277,12 +278,14 @@ import { onMounted } from 'vue';
 
 <script>
 import Layout from "../components/Layout.vue";
+import ApprovalTime from "../components/ApprovalTime.vue";
 import axios, { assetUrl } from "../api";
 import Nav from "../components/Nav.vue";
 import useValidate from "@vuelidate/core";
 import { required, email, minLength } from "@vuelidate/validators";
 export default {
   components: {
+    ApprovalTime,
     Layout,
     Nav
   },  data() {

@@ -157,7 +157,7 @@ router.get("/:id/view", authenticate, async (req, res) => {
   try {
     const post = await prisma.post.findFirst({
       where: { id: req.params.id, status: "approve" },
-      select: { id: true, title: true, detail: true, userId: true, imagePath: true, Images: { select: { id: true }, orderBy: { createdAt: "asc" } }, Tag: { select: { name: true } }, User: { select: publicUser } },
+      select: { id: true, title: true, detail: true, userId: true, approvedAt: true, imagePath: true, Images: { select: { id: true }, orderBy: { createdAt: "asc" } }, Tag: { select: { name: true } }, User: { select: publicUser } },
     });
     if (!post) return res.status(404).json({ message: "Post not found" });
     const { imagePath, ...publicPost } = post;
@@ -306,6 +306,14 @@ router.put("/:id", authenticate, adminOnly, async (req, res) => {
     const postId = req.params.id;
     const status = req.body.status;
     if (!["approve", "noneApprove", "pending"].includes(status)) return res.status(400).json({ message: "Invalid status" });
+
+    // Record the first approval; subsequent moderation keeps its original time.
+    if (status === "approve") {
+      await prisma.post.updateMany({
+        where: { id: postId, approvedAt: null },
+        data: { status, approvedAt: new Date() },
+      });
+    }
 
     await prisma.post.update({
       where: {

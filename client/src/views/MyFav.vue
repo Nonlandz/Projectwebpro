@@ -31,6 +31,7 @@
       </span>
     </div>
     <p class="mt-5">{{ post?.Post?.title }}</p>
+    <ApprovalTime :value="post.Post.approvedAt" />
     <p class="mt-5">{{ post?.Post?.detail }}</p>
     <img
       v-if="post?.Post?.image"
@@ -171,10 +172,12 @@
 <script>
 import axios, { assetUrl } from "../api";
 import Layout from "../components/Layout.vue";
+import ApprovalTime from "../components/ApprovalTime.vue";
 import Nav from "../components/Nav.vue";
 
 export default {
   components: {
+    ApprovalTime,
     Layout,
     Nav,
   },

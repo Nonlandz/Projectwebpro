@@ -7,6 +7,7 @@
         <div class="single-post-heading"><div><span class="single-post-tag">{{ post.Tag?.name || 'Item' }}</span><h1>{{ post.title }}</h1><p>Posted by {{ ownerName }}</p></div><button v-if="post.userId !== currentUserId" class="button-primary" @click="$router.push({ name: 'chat', params: { userId: post.userId }, query: { postId: post.id } })">Start chat</button></div>
         <div v-if="imageUrls.length" class="single-post-images"><img v-for="imageUrl in imageUrls" :key="imageUrl" :src="imageUrl" :alt="`Image for ${post.title}`" @error="$event.target.remove()" /></div>
         <p class="single-post-detail">{{ post.detail }}</p>
+        <ApprovalTime :value="post.approvedAt" />
       </article>
       <p v-else class="single-post-loading">Loading post…</p>
     </main>
@@ -16,9 +17,10 @@
 <script>
 import axios, { assetUrl } from '../api';
 import Layout from '../components/Layout.vue';
+import ApprovalTime from '../components/ApprovalTime.vue';
 import Nav from '../components/Nav.vue';
 export default {
-  components: { Layout, Nav },
+  components: { Layout, Nav, ApprovalTime },
   props: { id: { type: String, required: true } },
   data: () => ({ post: null, error: '', currentUserId: JSON.parse(localStorage.getItem('user'))?.id ?? null }),
   computed: {

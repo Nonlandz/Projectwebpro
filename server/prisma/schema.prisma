@@ -67,6 +67,7 @@ model Post {
   userId        String
   tagId         Int
   status        PostStatus @default(pending)
+  approvedAt    DateTime?
   exchangeEnded Boolean?   @default(false) // New field to indicate if item exchange has ended
   imagePath     String?
 

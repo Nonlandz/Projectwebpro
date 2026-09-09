@@ -23,13 +23,13 @@
           <div ref="messageList" class="messages" @scroll="markVisibleRead">
             <button v-if="hasOlder" :disabled="loadingOlder" @click="loadOlder">Load older messages</button>
             <p v-if="!messages.length" class="empty">Start the conversation.</p>
-            <template v-for="(message, index) in messages" :key="message.id">
+            <div v-for="(message, index) in messages" :key="message.id" class="message-group">
             <div v-if="isNewProductContext(message, index)" class="message-product-context"><span class="material-icons-outlined" aria-hidden="true">inventory_2</span><span>About: {{ message.Post.title }}</span><img v-if="postImageUrls(message.Post)[0]" :src="postImageUrls(message.Post)[0]" :alt="`Image for ${message.Post.title}`" @error="$event.target.remove()" /><button type="button" @click="viewPost(message.Post.id)">View post</button></div>
             <div :data-message-id="message.id" :class="['message', { mine: message.senderId === currentUserId }]">
               <div class="message-content">{{ message.content }}</div>
               <div class="message-meta"><time :datetime="message.createdAt">{{ formatTimestamp(message.createdAt) }}</time><span v-if="message.senderId === currentUserId">{{ message.readAt ? "Read" : "Sent" }}</span><button v-if="message.senderId === currentUserId" :disabled="deleting || sending" aria-label="Unsend message" @click="deleteMessage(message)">Unsend</button></div>
             </div>
-            </template>
+            </div>
           </div>
           <p v-if="failedMessage" class="error" role="alert">Message was not confirmed sent. <button :disabled="sending" @click="retryMessage">Retry sending</button></p>
           <form @submit.prevent="sendMessage">
@@ -195,6 +195,7 @@ export default {
 
 <style scoped>
 .unread { display: inline-block; padding: .1rem .4rem; margin-left: .5rem; border-radius: 1rem; background: #1e4f79; color: white; font-size: .75rem; }
+.message-group { display: contents; }
 .paging { display: flex; gap: .5rem; }
 .paging button:disabled { opacity: .4; }
 .chat-page { min-height: calc(100vh - 72px); display: grid; grid-template-columns: 320px minmax(0, 1fr); background: #e5e7e9; }
