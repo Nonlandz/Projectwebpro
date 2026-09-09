@@ -1,0 +1,32 @@
+:root { color-scheme: light; }
+.theme-toggle { display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; width:40px; height:40px; border-radius:10px; color:var(--ink); background:transparent; }
+.theme-toggle:hover { background:var(--line); }
+.theme-toggle:focus-visible { outline:2px solid var(--brand); outline-offset:3px; }
+html[data-theme="dark"] {
+  color-scheme:dark;
+  --canvas:#10151e; --surface:#192230; --ink:#e6edf6; --muted:#a7b4c8;
+  --line:#334155; --brand:#467be8; --brand-dark:#3568cd; --danger:#f18ca2;
+}
+html[data-theme="dark"] :is(.bg-white,.bg-white\/95,.surface,.auth-card,.login-experience,.conversation-list,.thread header,.thread form,.message,.like-tooltip,.message-notification-panel,.feed-post-thumbnails,.exchange-post-thumbnails,.userinfo-form > div,.single-post-loading) {
+  background:var(--surface)!important; color:var(--ink);
+}
+html[data-theme="dark"] :is(input,textarea,select,.button-secondary,.exchange-reset-cancel) {
+  background:var(--canvas)!important; color:var(--ink)!important; border-color:var(--line)!important;
+}
+html[data-theme="dark"] :is(input,textarea)::placeholder { color:var(--muted); }
+html[data-theme="dark"] :is(.bg-slate-50,.bg-slate-100,.bg-gray-200,.trade-story,.feed-post-gallery,.feed-post-image,.exchange-post-detail-image,.single-post-images img,.chat-product-context,.login-symbol,.single-post-tag) {
+  background:#222f43!important; color:var(--ink)!important;
+}
+html[data-theme="dark"] :is(.text-slate-500,.text-slate-600,.text-slate-700,.text-gray-500,.text-gray-600,.field,.login-field label,.login-nav-link,.trade-eyebrow,.trade-description,.trade-caption,.login-intro,.login-register p,.login-note,.message-notification-title,.conversation-list small,.conversation-list time,.empty,.message-product-context,.chat-product-context p,.chat-product-context small) { color:var(--muted)!important; }
+html[data-theme="dark"] :is(.border-slate-200,.border-t,.border-b,.login-nav,.login-register,.message-notification-panel,.exchange-post-modal-body,.exchange-post-thumbnails) { border-color:var(--line)!important; }
+html[data-theme="dark"] :is(.message-notification-item,.exchange-post-detail-content h2,.login-panel h2,.trade-copy h1) { color:var(--ink)!important; }
+html[data-theme="dark"] :is(.hover\:bg-slate-100,.hover\:bg-slate-50,.message-notification-item,.message-notification-all):hover,
+html[data-theme="dark"] .conversation-list button:is(:hover,.active) { background:#293951!important; }
+html[data-theme="dark"] .message.mine { background:var(--brand)!important; color:#fff!important; }
+html[data-theme="dark"] .trade-image { mix-blend-mode:normal; }
+html[data-theme="dark"] :is(.swal2-popup,.swal2-toast) { background:var(--surface)!important; color:var(--ink)!important; border-color:var(--line)!important; }
+html[data-theme="dark"] :is(.swal2-title,.swal2-html-container,.exchange-reset-title,.exchange-post-modal-body,.swal2-input-label) { color:var(--ink)!important; }
+html[data-theme="dark"] :is(.exchange-reset-copy,.exchange-post-detail-content p,.exchange-post-modal-label,.swal2-close) { color:var(--muted)!important; }
+html[data-theme="dark"] :is(.swal2-validation-message,.error) { background:#422435!important; color:#ffb4c1!important; }
+html[data-theme="dark"] :is(.auth-page,.userinfo-form) { background:radial-gradient(circle at 15% 0%,#1c3154,transparent 32rem),var(--canvas)!important; }
+html[data-theme="dark"] :is(.login-forgot,.login-register a,.login-nav-link span,.chat-view-post,.message-product-context button,.message-notification-all,.text-blue-500,.text-\[\#2457d6\]) { color:#91b7ff!important; }

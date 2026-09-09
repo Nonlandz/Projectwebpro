@@ -2,6 +2,7 @@
   <Layout>
     <div class="login-experience">
       <header class="login-nav">
+        <ThemeToggle />
         <router-link to="/" class="login-wordmark" aria-label="ExchangeKUB home">Exchange<span>KUB</span></router-link>
         <router-link to="/login" class="login-nav-link">Already a member? Sign in <span aria-hidden="true">↗</span></router-link>
       </header>

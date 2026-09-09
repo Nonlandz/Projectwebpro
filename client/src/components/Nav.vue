@@ -7,6 +7,7 @@
         <button class="material-icons-outlined absolute left-3 top-2 text-slate-500" aria-label="Search" @click="performSearch">search</button>
       </div>
       <div class="ml-auto flex items-center gap-1 relative">
+        <ThemeToggle />
         <button @click="$router.push('/myfav')" class="material-icons-outlined rounded-lg p-2 text-slate-600 hover:bg-slate-100" aria-label="Saved posts">favorite_border</button>
         <div class="message-notification" @mouseenter="showMessageNotifications = true" @mouseleave="showMessageNotifications = false">
           <button @click="$router.push('/chat')" class="message-notification-button material-icons-outlined rounded-lg p-2 text-slate-600 hover:bg-slate-100" :aria-label="unreadLabel" :aria-expanded="showMessageNotifications">
