@@ -4,5 +4,16 @@
     "api/[...path].js": {
       "maxDuration": 60
     }
-  }
+  },
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "methods": ["OPTIONS"],
+      "dest": "/api/preflight.js"
+    },
+    {
+      "src": "/api/(.*)",
+      "dest": "/api/[...path].js"
+    }
+  ]
 }
