@@ -7,7 +7,7 @@
         <div class="profile-image mt-5">
           <img
             v-if="userInfo.profileImageUrl"
-            :src="userInfo.profileImageUrl"
+            :src="assetUrl(userInfo.profileImageUrl)"
             alt="User profile image"
           />
           <div v-else class="profile-avatar" aria-label="No profile image">{{ initials }}</div>
@@ -95,7 +95,7 @@
 
 
 <script>
-import axios from "../api";
+import axios, { assetUrl } from "../api";
 import Layout from "../components/Layout.vue";
 import Nav from "../components/Nav.vue";
 
@@ -141,6 +141,7 @@ export default {
     },
   },
   methods: {
+    assetUrl,
     formatDate(value) {
       return value ? new Date(value).toLocaleString() : '—';
     },

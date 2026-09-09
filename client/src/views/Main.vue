@@ -97,7 +97,7 @@ import { onMounted } from 'vue';
             <div class="bg-white p-5">
 <div class="flex items-center justify-between">
 <div class="flex items-center">
-  <img :src="post.User.UserInfo.profileImageUrl" class="feed-avatar h-10 w-10 rounded-full" alt="" />
+  <img :src="assetUrl(post.User.UserInfo.profileImageUrl)" class="feed-avatar h-10 w-10 rounded-full" alt="" />
                <router-link
             :to="{ name: 'UserProfile', params: { userId: post?.User?.id } }"
             class="ml-2"
@@ -187,7 +187,7 @@ import { onMounted } from 'vue';
           <hr class="my-5">
           <div v-for="(comment, commentIndex) in post.Comment" :key="commentIndex" class="mt-3">
       <div class="flex items-center">
-        <img :src="comment.author.UserInfo.profileImageUrl" class="feed-avatar h-10 w-10 rounded-full" alt="" />
+        <img :src="assetUrl(comment.author.UserInfo.profileImageUrl)" class="feed-avatar h-10 w-10 rounded-full" alt="" />
 
 
 
@@ -277,7 +277,7 @@ import { onMounted } from 'vue';
 
 <script>
 import Layout from "../components/Layout.vue";
-import axios from "../api";
+import axios, { assetUrl } from "../api";
 import Nav from "../components/Nav.vue";
 import useValidate from "@vuelidate/core";
 import { required, email, minLength } from "@vuelidate/validators";
@@ -333,6 +333,7 @@ export default {
     }
   },
   methods: {
+    assetUrl,
     async showAlert(type, text) {
       const Toast = await this.$swal.mixin({
         toast: true,
@@ -394,8 +395,8 @@ export default {
         this.posts = data.map(post => ({
           ...post,
           imageUrls: post.Images?.length
-            ? post.Images.map(image => `/api/posts/${post.id}/images/${image.id}`)
-            : [`/api/posts/${post.id}/image`],
+            ? post.Images.map(image => assetUrl(`/api/posts/${post.id}/images/${image.id}`))
+            : [assetUrl(`/api/posts/${post.id}/image`)],
           activeImage: 0,
           like: post.UserFav.some(fav => fav.userId === this.userId),
         }));

@@ -14,7 +14,7 @@
 </template>
 
 <script>
-import axios from '../api';
+import axios, { assetUrl } from '../api';
 import Layout from '../components/Layout.vue';
 import Nav from '../components/Nav.vue';
 export default {
@@ -23,7 +23,7 @@ export default {
   data: () => ({ post: null, error: '', currentUserId: JSON.parse(localStorage.getItem('user'))?.id ?? null }),
   computed: {
     ownerName() { const info = this.post?.User?.UserInfo; return [info?.firstName, info?.lastName].filter(Boolean).join(' ') || info?.username || 'Member'; },
-    imageUrls() { if (!this.post) return []; if (this.post.Images?.length) return this.post.Images.map(image => `/api/posts/${this.post.id}/images/${image.id}`); return this.post.hasLegacyImage ? [`/api/posts/${this.post.id}/image`] : []; },
+    imageUrls() { if (!this.post) return []; if (this.post.Images?.length) return this.post.Images.map(image => assetUrl(`/api/posts/${this.post.id}/images/${image.id}`)); return this.post.hasLegacyImage ? [assetUrl(`/api/posts/${this.post.id}/image`)] : []; },
   },
   mounted() { this.loadPost(); },
   watch: { id() { this.loadPost(); } },

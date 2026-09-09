@@ -1,5 +1,14 @@
 import axios from "axios";
-const api = axios.create({ baseURL: import.meta.env.VITE_API_URL || "/api" });
+const apiBaseUrl = import.meta.env.VITE_API_URL || "/api";
+const api = axios.create({ baseURL: apiBaseUrl });
+
+// Axios uses baseURL automatically, but native <img src> URLs do not. Keep
+// stored API image paths working both locally (Vite proxy) and on Vercel.
+export function assetUrl(url) {
+  if (!url || /^(?:https?:|data:|blob:)/i.test(url) || !url.startsWith("/api/")) return url;
+  if (!/^https?:\/\//i.test(apiBaseUrl)) return url;
+  return `${apiBaseUrl.replace(/\/api\/?$/, "")}${url}`;
+}
 api.interceptors.request.use(config => {
   const token = localStorage.getItem("token");
   if (token) config.headers.Authorization = `Bearer ${token}`;

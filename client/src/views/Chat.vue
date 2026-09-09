@@ -6,7 +6,7 @@
         <h1>Messages</h1><p v-if="error" class="error" role="alert">{{ error }} <button @click="refreshActiveThread">Retry loading</button></p>
         <p v-if="!conversations.length" class="empty">No conversations yet.</p>
         <button v-for="conversation in conversations" :key="conversation.otherUser.id" :class="{ active: activeUser?.id === conversation.otherUser.id }" @click="selectConversation(conversation.otherUser)">
-          <img v-if="conversation.otherUser.UserInfo?.profileImageUrl" :src="conversation.otherUser.UserInfo.profileImageUrl" alt="" />
+          <img v-if="conversation.otherUser.UserInfo?.profileImageUrl" :src="assetUrl(conversation.otherUser.UserInfo.profileImageUrl)" alt="" />
           <span v-else class="avatar">{{ initials(conversation.otherUser) }}</span>
           <span><strong>{{ displayName(conversation.otherUser) }}</strong><span v-if="conversation.unreadCount" class="unread" :aria-label="`${conversation.unreadCount} unread messages`">{{ conversation.unreadCount }}</span><small>{{ conversation.lastMessage.content }}</small><time :datetime="conversation.lastMessage.createdAt">{{ formatTimestamp(conversation.lastMessage.createdAt) }}</time></span>
         </button>
@@ -44,7 +44,7 @@
 </template>
 
 <script>
-import axios from "../api";
+import axios, { assetUrl } from "../api";
 import Layout from "../components/Layout.vue";
 import Nav from "../components/Nav.vue";
 export default {
@@ -63,6 +63,7 @@ export default {
     postId(value) { if (value && this.activeUser) this.loadPostContext(value).catch(() => { this.error = "Unable to load item information"; }); else this.contextPost = null; },
   },
   methods: {
+    assetUrl,
     formatTimestamp(value) { const date = new Date(value); return Number.isNaN(date.getTime()) ? "" : date.toLocaleString(undefined, { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }); },
     displayName(user) { return [user.UserInfo?.firstName, user.UserInfo?.lastName].filter(Boolean).join(" ") || user.UserInfo?.username || "User"; },
     initials(user) { return this.displayName(user).slice(0, 1).toUpperCase(); },
@@ -171,8 +172,8 @@ export default {
     },
     postImageUrls(post) {
       if (!post?.id) return [];
-      if (post.Images?.length) return post.Images.map(image => `/api/posts/${post.id}/images/${image.id}`);
-      return post.hasLegacyImage ? [`/api/posts/${post.id}/image`] : [];
+      if (post.Images?.length) return post.Images.map(image => assetUrl(`/api/posts/${post.id}/images/${image.id}`));
+      return post.hasLegacyImage ? [assetUrl(`/api/posts/${post.id}/image`)] : [];
     },
     viewPost(postId) { this.$router.push({ name: "post", params: { id: postId } }); },
     async sendMessage() {

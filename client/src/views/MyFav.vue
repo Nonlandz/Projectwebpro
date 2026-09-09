@@ -13,7 +13,7 @@
     <div class="flex items-center justify-between">
       <div class="flex items-center">
         <img
-    :src="post?.Post?.User?.UserInfo?.profileImageUrl"
+    :src="assetUrl(post?.Post?.User?.UserInfo?.profileImageUrl)"
     class="h-10 w-10 rounded-full"
     alt=""
   />
@@ -34,7 +34,7 @@
     <p class="mt-5">{{ post?.Post?.detail }}</p>
     <img
       v-if="post?.Post?.image"
-      :src="post.Post.image"
+      :src="assetUrl(post.Post.image)"
       class="mt-5 w-full max-h-96 rounded-md object-cover"
       alt="Post image"
       @error="post.Post.image = null"
@@ -169,7 +169,7 @@
 </style>
 
 <script>
-import axios from "../api";
+import axios, { assetUrl } from "../api";
 import Layout from "../components/Layout.vue";
 import Nav from "../components/Nav.vue";
 
@@ -191,7 +191,9 @@ export default {
     }
     //this.getPost();
   },
-  methods: {    async getFavoritePosts() {
+  methods: {
+    assetUrl,
+    async getFavoritePosts() {
   try {
     this.loading = true;
     const res = await axios.get(`/user/fav/${this.userId}`);
@@ -199,7 +201,7 @@ export default {
     this.favoritePosts = favoritePosts;
 
     for (const post of this.favoritePosts) {
-      post.Post.image = `/api/posts/${post.Post.id}/image`;
+      post.Post.image = assetUrl(`/api/posts/${post.Post.id}/image`);
       const profileImageUrl = await this.fetchProfileImage(post?.Post?.User?.UserInfo?.userId);
       if (profileImageUrl) {
         post.Post.User.UserInfo.profileImageUrl = profileImageUrl;

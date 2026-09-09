@@ -23,7 +23,7 @@
 
 <script>
 import Layout from "../components/Layout.vue";
-import axios from "../api";
+import axios, { assetUrl } from "../api";
 import Swal from "sweetalert2";
 import Nav from "../components/Nav.vue";
 
@@ -126,8 +126,8 @@ export default {
       return ({ approve: "approved", pending: "pending", noneApprove: "not-approved" })[status] || "unknown";
     },
     async postImageUrls(post) {
-      if (post.Images?.length) return post.Images.map(image => `/api/posts/${encodeURIComponent(post.id)}/images/${encodeURIComponent(image.id)}`);
-      const legacyUrl = `/api/posts/${encodeURIComponent(post.id)}/image`;
+      if (post.Images?.length) return post.Images.map(image => assetUrl(`/api/posts/${encodeURIComponent(post.id)}/images/${encodeURIComponent(image.id)}`));
+      const legacyUrl = assetUrl(`/api/posts/${encodeURIComponent(post.id)}/image`);
       return await this.postImageExists(legacyUrl) ? [legacyUrl] : [];
     },
     bindGalleryEvents() {
