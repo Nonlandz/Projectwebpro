@@ -1,25 +1,41 @@
 <template>
   <Layout>
-    <div class="w-full h-full flex flex-grow items-center justify-center">
-      <div class="w-96 border flex flex-col items-center gap-y-10 p-5 rounded-md shadow-md px-10 bg-white">
-        <h1 class="text-3xl text-slate-600 font-bold my-10">ITxChange</h1>
-        <div class="w-full flex flex-col items-center gap-y-3">
-          <div class="flex flex-col w-full">
-            <label class="text-slate-600" for="email">Email</label>
-            <input type="email" name="email" id="email" class="border rounded-md w-full py-1 px-1" v-model="data.email" />
+    <div class="login-experience">
+      <header class="login-nav">
+        <router-link to="/" class="login-wordmark" aria-label="ExchangeKUB home">Exchange<span>KUB</span></router-link>
+        <router-link to="/register" class="login-nav-link">Join the community <span aria-hidden="true">↗</span></router-link>
+      </header>
+      <div class="login-content">
+        <section class="trade-story" aria-labelledby="trade-heading">
+          <div class="trade-copy">
+            <p class="trade-eyebrow">LESS UNUSED. MORE POSSIBILITIES.</p>
+            <h1 id="trade-heading">A new chapter.<br />For your things.</h1>
+            <p class="trade-description">Trade what you have.<br class="mobile-break" /> Find what you love.</p>
           </div>
-          <div class="flex flex-col w-full">
-            <label class="text-slate-600" for="password">Password</label>
-            <input type="password" name="password" id="password" class="border rounded-md w-full py-1 px-1" v-model="data.password" />
+          <img class="trade-image" src="/images/trade-hero.png" alt="People exchanging books and a plant above a collection of clothing, sneakers, a lamp, and a camera" fetchpriority="high" width="1536" height="1024" />
+          <p class="trade-caption">From your everyday essentials to someone’s next favourite.</p>
+        </section>
+        <section class="login-panel" aria-labelledby="signin-heading">
+          <div class="login-form-content">
+            <div class="login-symbol" aria-hidden="true">⇄</div>
+            <h2 id="signin-heading">Welcome back.</h2>
+            <p class="login-intro">Your next great exchange starts here.</p>
+            <form @submit.prevent="login" class="signin-form">
+              <div class="login-field">
+                <label for="email">Email address</label>
+                <input type="email" name="email" id="email" autocomplete="email" placeholder="you@example.com" required v-model="data.email" />
+              </div>
+              <div class="login-field">
+                <label for="password">Password</label>
+                <input type="password" name="password" id="password" autocomplete="current-password" placeholder="Enter your password" required v-model="data.password" />
+              </div>
+              <button type="button" @click="forgotPassword" class="login-forgot">Forgot password?</button>
+              <button type="submit" class="login-submit" :disabled="isSigningIn">{{ isSigningIn ? 'Signing in…' : 'Sign in' }}<span v-if="!isSigningIn" aria-hidden="true">→</span></button>
+            </form>
+            <div class="login-register"><p>New to ExchangeKUB?</p><router-link to="/register">Create your account <span aria-hidden="true">↗</span></router-link></div>
+            <p class="login-note">Good things deserve another story.</p>
           </div>
-        </div>
-        <button @click="login" class="bg-[#EB6648] text-white w-full rounded-md py-1.5">Submit</button>
-        <p class="text-md text-gray-400 text-center mt-20">
-          Don't have an account? <a @click="register" class="text-black/70 cursor-pointer block">Register now ✨</a>
-        </p>
-        <p class="text-md text-gray-400 text-center mt-5">
-          <a @click="forgotPassword" class="text-black/70 cursor-pointer block">Forgot Password?✅</a>
-        </p>
+        </section>
       </div>
     </div>
   </Layout>
@@ -27,7 +43,7 @@
 
 <script>
 import Layout from "../components/Layout.vue";
-import axios from "axios";
+import axios from "../api";
 import useValidate from "@vuelidate/core";
 import { required, email, minLength } from "@vuelidate/validators";
 
@@ -38,6 +54,7 @@ export default {
   data() {
     return {
       v$: useValidate(),
+      isSigningIn: false,
       data: {
         email: "",
         password: "",
@@ -87,46 +104,35 @@ export default {
     },
 
     async forgotPassword() {
-  try {
-    const { value: result } = await this.$swal.fire({
-      title: "Forgot Password",
-      html: `
-        <input id="swal-input1" class="swal2-input" placeholder="Enter your email">
-        <input id="swal-input2" type="password" class="swal2-input" placeholder="Enter your new password">
-        <input id="swal-input3" type="password" class="swal2-input" placeholder="Confirm your new password">
-      `,
-      focusConfirm: false,
-      preConfirm: () => {
-        const email = document.getElementById('swal-input1').value;
-        const password = document.getElementById('swal-input2').value;
-        const confirmPassword = document.getElementById('swal-input3').value;
-
-        return axios.post("http://localhost:8080/api/user/forgotpassword", { 
-          email, 
-          password,
-          confirmPassword
-        }).then(response => {
-          return email;
-        }).catch(error => {
-          this.$swal.showValidationMessage(error.response.data.message);   // updated
-        });
-      },
-      allowOutsideClick: () => !this.$swal.isLoading(),
-    });
-
-    if (result) {
-      this.showAlert("success", "Password has been successfully reset.");
-    } else {
-      this.showAlert("error", "Failed to reset password.");
-    }
-  } catch (error) {
-    this.showAlert("error", error.message);
-  }
-},
-
-
+      const { value: email } = await this.$swal.fire({
+        title: "Reset your password",
+        html: '<p class="exchange-reset-copy">Enter your email and we’ll send a link to reset your password.</p>',
+        input: "email",
+        inputLabel: "Email address",
+        inputPlaceholder: "you@example.com",
+        inputAttributes: { autocomplete: "email", "aria-label": "Email address" },
+        showCancelButton: true,
+        confirmButtonText: "Send reset link <span aria-hidden=\"true\">→</span>",
+        cancelButtonText: "Cancel",
+        buttonsStyling: false,
+        focusConfirm: false,
+        customClass: {
+          popup: "exchange-reset-modal",
+          title: "exchange-reset-title",
+          input: "exchange-reset-input",
+          actions: "exchange-reset-actions",
+          confirmButton: "exchange-reset-confirm",
+          cancelButton: "exchange-reset-cancel",
+        },
+      });
+      if (!email) return;
+      try { const { data } = await axios.post("/user/forgotpassword", { email }); this.showAlert("success", data.message); }
+      catch (error) { this.showAlert("error", error.response?.data?.message || "Unable to request a reset link"); }
+    },
 
 async login() {
+  if (this.isSigningIn) return;
+  this.isSigningIn = true;
   try {
     const result = await this.v$.$validate();
 
@@ -134,13 +140,13 @@ async login() {
       throw new Error("Invalid data");
     }
 
-    const res = await axios.post("http://localhost:8080/api/user/login", this.data);
+    const res = await axios.post("/user/login", this.data);
 
     localStorage.setItem("user", JSON.stringify(res.data.user));
     localStorage.setItem("token", res.data.accessToken);
 
     // Check if user information is complete
-    if (!res.data.user.UserInfo.username) {
+    if (!res.data.user.UserInfo?.username) {
       // Redirect to userinfo page if user information is not complete
       this.$router.push("/userinfo");
       this.showAlert("info", "Please complete your user information.");
@@ -160,6 +166,8 @@ async login() {
     } else {
       this.showAlert("error", error.message);
     }
+  } finally {
+    this.isSigningIn = false;
   }
 },
 
@@ -170,3 +178,5 @@ async login() {
   },
 };
 </script>
+
+<style scoped src="../styles/auth.css"></style>

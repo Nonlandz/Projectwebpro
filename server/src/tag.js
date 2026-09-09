@@ -1,7 +1,9 @@
 import express from "express";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "./db.js";
+import { authenticate, adminOnly, ownParam } from "./middleware/auth.js";
+import { publicUser, pageArgs, deletePost } from "./shared.js";
 
-const prisma = new PrismaClient();
+
 const router = express.Router();
 
 router.get("/", async (req, res) => {
@@ -13,7 +15,7 @@ router.get("/", async (req, res) => {
   }
 });
 
-router.post("/", async (req, res) => {
+router.post("/", authenticate, adminOnly, async (req, res) => {
   try {
     const tag = await prisma.tag.create({
       data: {
@@ -26,7 +28,7 @@ router.post("/", async (req, res) => {
   }
 });
 
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", authenticate, adminOnly, async (req, res) => {
   try {
     const { id } = req.params;
     const tag = await prisma.tag.delete({

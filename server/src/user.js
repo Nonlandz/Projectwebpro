@@ -1,10 +1,14 @@
 import express from "express";
-import { PrismaClient } from "@prisma/client";
-const prisma = new PrismaClient();
+import { prisma } from "./db.js";
+import { authenticate, adminOnly, ownParam, optionalAuthenticate } from "./middleware/auth.js";
+import { publicUser, pageArgs, deletePost } from "./shared.js";
+
 const router = express.Router();
 import bcypt from "bcryptjs";
+import { issueReset, consumeReset, deliverReset, resetRateLimit, resetEmailConfigured } from "./password-reset.js";
 import jwt from "jsonwebtoken";  //token
 import { object, string, number, date } from "yup";
+import { uploadImage as uploadProfileImage, storeImage, publicImageUrl, legacyImage, cleanupImage } from "./image-storage.js";
 
 
 const findEmail = async (email) => {
@@ -40,7 +44,7 @@ router.post("/register", async (req, res) => {
     const hash = await bcypt.hash(password, 10);
 
     const createUser = await prisma.user.create({    //สร้างuser
-      data: {
+      data: {   
         email: email,
         password: hash,
       },
@@ -54,7 +58,7 @@ router.post("/register", async (req, res) => {
 
     delete createUser.password;
 
-    const accessToken = jwt.sign(createUser, process.env.TOKEN, {
+    const accessToken = jwt.sign({ id: createUser.id, sessionVersion: createUser.sessionVersion }, process.env.TOKEN, {
       expiresIn: "2h", //สร้างtoken
     });
 
@@ -90,7 +94,7 @@ router.post("/login", async (req, res) => {
 
     delete checkEmail.password;
 
-    const accessToken = jwt.sign(checkEmail, process.env.TOKEN, {
+    const accessToken = jwt.sign({ id: checkEmail.id, sessionVersion: checkEmail.sessionVersion }, process.env.TOKEN, {
       expiresIn: "2h",
     });
 
@@ -101,15 +105,13 @@ router.post("/login", async (req, res) => {
 });
 
 //get post
-router.get("/posts/:id", async (req, res) => {
+router.get("/posts/:id", authenticate, ownParam("id"), async (req, res) => {
   try {
     const posts = await prisma.user.findMany({
       where: {
         id: req.params.id,
       },
-      include: {
-        Post: true,
-      },
+      select: { id: true, Post: { orderBy: { createdAt: "desc" }, ...pageArgs(req.query) } },
       orderBy: {
         createdAt: "desc",
       },
@@ -122,46 +124,18 @@ router.get("/posts/:id", async (req, res) => {
 });
 
 //ลบโพส
-router.delete("/posts/:postId", async (req, res) => {
-  try {
-    const postId = parseInt(req.params.postId);
-    
-    // Check if the post exists
-    const existingPost = await prisma.post.findUnique({
-      where: {
-        id: postId,
-      },
-    });
-    
-    if (!existingPost) {
-      return res.status(404).json({ error: "Post not found" });
-    }
-    
-    // Delete the post
-    await prisma.post.delete({
-      where: {
-        id: postId,
-      },
-    });
-
-    res.json({ message: "Post deleted successfully" });
-  } catch (error) {
-    console.log(error);
-    res.status(500).json({ error: "Failed to delete post" });
-  }
+router.delete("/posts/:postId", authenticate, async (req, res) => {
+  try { await deletePost(prisma, req.params.postId, req.user); res.sendStatus(204); }
+  catch (error) { res.status(error.status || 500).json({ message: error.status ? error.message : "Failed to delete post" }); }
 });
 
-
-
-
-
 //get fav
-router.get("/fav/:id", async (req, res) => {
+router.get("/fav/:id", authenticate, ownParam("id"), async (req, res) => {
   try {
-    console.log(req.params.id);
     const post = await prisma.postFav.findMany({
       where: {
         userId: req.params.id,
+        Post: { status: "approve" },
       },
       include: {
         Post: {
@@ -171,7 +145,7 @@ router.get("/fav/:id", async (req, res) => {
             Comment: true,
             User: {
               select: {
-                UserInfo: true,
+                UserInfo: publicUser.UserInfo,
               },
             },
           },
@@ -186,9 +160,10 @@ router.get("/fav/:id", async (req, res) => {
 
 
 //update userinfo
-router.put("/userinfo", async (req, res) => {
+router.put("/userinfo", authenticate, async (req, res) => {
   try {
-    const { userId, username, firstName, lastName, phone, address } = req.body;
+    const { username, firstName, lastName, phone, address } = req.body;
+    const userId = req.user.id;
 
     let userInfoSchema = object({
       userId: string().required(),
@@ -227,60 +202,90 @@ router.put("/userinfo", async (req, res) => {
   }
 });
 
-//ลืมรหัสผ่าน
-router.post("/forgotpassword", async (req, res) => {
+router.post("/:userId/profile-image", authenticate, ownParam("userId"), uploadProfileImage.single("image"), async (req, res) => {
   try {
-    const { email, password, confirmPassword } = req.body;
+    const { userId } = req.params;
 
-    // Validate email and new password
-    let schema = object({
-      email: string().email().required(),
-      password: string().required().min(6),
-      confirmPassword: string().required().oneOf([password], "Passwords must match"),
-    });
-
-    await schema.validate(req.body);
-
-    // Check if the email exists in the database
-    const existingUser = await findEmail(email);
-
-    if (!existingUser) {
-      res.status(400).json({ message: "User with this email does not exist" });
-      return;
+    if (!req.file) {
+      return res.status(400).json({ message: "An image file is required" });
     }
 
-    // Update the user's password
-    const hash = await bcypt.hash(password, 10);
+    // The client provides its current user id as with the existing post image endpoint.
+    if (req.body.userId !== userId) {
+      return res.status(403).json({ message: "Unauthorized to upload this profile image" });
+    }
 
-    await prisma.user.update({
-      where: {
-        id: existingUser.id,
-      },
-      data: {
-        password: hash,
-      },
-    });
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true } });
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
 
-    res.json({ message: "Password has been successfully reset" });
+    const profileImageUrl = `/api/user/${userId}/profile-image`;
+    const profileImagePath = await storeImage("users", userId, req.file);
+    let previous;
+    try {
+      previous = await prisma.$transaction(async tx => {
+        await tx.$queryRaw`SELECT id FROM "UserInfo" WHERE "userId" = ${userId} FOR UPDATE`;
+        const current = await tx.userInfo.findUnique({ where: { userId } });
+        await tx.userInfo.update({ where: { userId }, data: { profileImageUrl, profileImagePath } });
+        return current.profileImagePath;
+      });
+    } catch (error) { await cleanupImage(profileImagePath); throw error; }
+    await cleanupImage(previous);
+    res.status(201).json({ profileImageUrl });
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    console.log(error);
+    res.status(error.status || 500).json({ message: error.status ? error.message : "Failed to upload profile image" });
   }
 });
 
+router.get("/:userId/profile-image", async (req, res) => {
+  try {
+    const info = await prisma.userInfo.findUnique({ where: { userId: req.params.userId } });
+    if (!info) return res.status(404).end();
+    res.set("Cache-Control", "no-store");
+    if (info.profileImagePath) return res.redirect(302, publicImageUrl(info.profileImagePath));
+    const filename = await legacyImage("users", req.params.userId);
+    if (!filename) return res.status(404).end();
+    res.sendFile(filename);
+  } catch (error) {
+    res.status(404).end();
+  }
+});
 
+//ลืมรหัสผ่าน
+router.post("/forgotpassword", resetRateLimit, async (req, res) => {
+  if (!resetEmailConfigured()) return res.status(503).json({ message: "Password reset email is not configured. Contact the administrator." });
+  try {
+    const email = await string().email().required().validate(req.body.email);
+    await issueReset(prisma, email, deliverReset);
+  } catch { /* Do not reveal whether an account exists or expose reset tokens. */ }
+  res.json({ message: "If an account exists, a password reset link will be emailed to you." });
+});
+router.post("/resetpassword", resetRateLimit, async (req, res) => {
+  try { await consumeReset(prisma, req.body.token, req.body.password); res.json({ message: "Password updated. Please sign in again." }); }
+  catch (error) { res.status(400).json({ message: error.message }); }
+});
 
-router.get("/profile/:userId", async (req, res) => {
+router.get("/profile/:userId", optionalAuthenticate, async (req, res) => {
   
   try {
     
     const { userId } = req.params;
 
+    const canViewAllDetails = req.user?.role === "admin";
     const user = await prisma.user.findUnique({
       where: {
         id: userId,
       },
-      include: {
-        UserInfo: true,
+      select: {
+        ...publicUser,
+        ...(canViewAllDetails ? { email: true, role: true, createdAt: true } : {}),
+        UserInfo: { select: {
+          ...publicUser.UserInfo.select,
+          phone: true,
+          ...(canViewAllDetails ? { username: true, address: true, createdAt: true, updatedAt: true } : {}),
+        } },
       },
     });
 
@@ -288,7 +293,8 @@ router.get("/profile/:userId", async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    res.json(user);
+    res.set("Cache-Control", "private, no-store");
+    res.json({ ...user, canViewAllDetails });
   } catch (error) {
     console.log(error);
     res.status(500).json({ error: "Failed to fetch user profile" });

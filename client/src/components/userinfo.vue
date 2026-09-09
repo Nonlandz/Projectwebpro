@@ -52,7 +52,7 @@
 </template>
 
 <script>
-import axios from 'axios'
+import axios from '../api'
 import Swal from 'sweetalert2'
 
 
@@ -118,7 +118,7 @@ async submitForm() {
     }
 
     try {
-      const response = await axios.put('http://localhost:8080/api/user/userinfo', this.form);
+      const response = await axios.put('/user/userinfo', this.form);
       if (response.status === 200) {
         const user = JSON.parse(localStorage.getItem('user'));
         user.UserInfo = {

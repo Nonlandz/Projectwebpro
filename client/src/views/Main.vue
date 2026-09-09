@@ -1,29 +1,34 @@
 import { onMounted } from 'vue';
-<template>
-  <Layout>
-    <Nav />
-    <div class="w-full h-full flex flex-grow flex-col items-center">
-      <div class="w-3/5 mt-5">
+<template>  <Layout>
+    <Nav ref="navComponent" @search="handleSearch" />
+    <div class="feed-shell">
+      <div class="w-full">
         <!-- tags -->
         <div class="w-full overflow-scroll flex gap-x-2 scrollbar-hide">
           <button
             @click="filterTag('all')"
-            class="bg-gray-300 w-fit p-1 rounded-full px-5 cursor-pointer"
+            :class="['w-fit rounded-full border px-4 py-2 text-sm font-semibold', selectedTag === 'all' ? 'border-[#2457d6] bg-[#2457d6] text-white' : 'border-slate-200 bg-white text-slate-700']"
           >
-            all
+            All
           </button>
           <button
             @click="filterTag(tag.id)"
             v-for="(tag, index) in tags"
             :key="index"
-            class="bg-gray-300 w-fit p-1 rounded-full px-5 cursor-pointer"
+            :class="['w-fit rounded-full border px-4 py-2 text-sm font-semibold', selectedTag === tag.id ? 'border-[#2457d6] bg-[#2457d6] text-white' : 'border-slate-200 bg-white text-slate-700']"
           >
             {{ tag.name }}
-          </button>
+          </button>        </div>
+        <!-- Search results info -->
+        <div v-if="searchQuery" class="w-full mt-3 text-center text-gray-600">
+          <p>ผลการค้นหาสำหรับ: "<strong>{{ searchQuery }}</strong>" ({{ posts.length }} รายการ)</p>
+          <button @click="clearSearch" class="text-blue-500 underline ml-2">ล้างการค้นหา</button>
         </div>
+        <p v-if="postError" class="surface mt-4 p-3 text-sm text-red-700" role="alert">{{ postError }} <button class="font-semibold underline" @click="getPost">Retry</button></p>
+        <div class="my-4 flex items-center gap-2 text-sm text-slate-500"><button class="button-secondary" :disabled="offset === 0 || loadingPosts" @click="offset -= 20; getPost()">Previous</button><span class="px-2">Page {{ offset / 20 + 1 }}</span><button class="button-secondary" :disabled="!hasNext || loadingPosts" @click="offset += 20; getPost()">Next</button></div>
         <!-- post -->
         <div
-          class="w-full mt-5 bg-white rounded-md flex flex-col justify-between p-5"
+          class="surface w-full mt-5 flex flex-col justify-between p-5"
         >
           <div class="w-full flex flex-grow" @click="openButton = true">
             <input
@@ -32,12 +37,15 @@ import { onMounted } from 'vue';
               class="flex-grow focus:outline-none"
               v-model="createPost.title"
             />
-            <label for="file" class="material-icons-outlined">image </label>
+            <label for="post-image" class="material-icons-outlined cursor-pointer" title="Add up to 3 images">image</label>
+            <span class="ml-2 text-xs text-slate-500">Up to 3 images</span>
             <input
+              id="post-image"
               class="hidden"
               type="file"
-              id="file"
-              @change="handleImagePreview"
+              accept="image/*"
+              multiple
+              @change="handleImageSelection"
             />
           </div>
           <div
@@ -45,17 +53,11 @@ import { onMounted } from 'vue';
               openButton ? 'flex' : 'hidden'
             }`"
           >
-            <div
-              class="w-full mt-5 flex justify-center relative"
-              v-if="previewImage"
-            >
-              <img :src="previewImage" class="h-[300px] w-[300px]" alt="" />
-              <button
-                @click="previewImage = null"
-                class="material-icons-outlined absolute -top-3 right-0 z-10 bg-white/90 rounded-full p-1 shadow-lg"
-              >
-                delete
-              </button>
+            <div v-if="imagePreviews.length" class="w-full mt-5 grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div v-for="(preview, index) in imagePreviews" :key="preview" class="relative">
+                <img :src="preview" class="h-44 w-full rounded-lg object-cover" :alt="`Selected image ${index + 1}`" />
+                <button @click="removeSelectedImage(index)" type="button" class="material-icons-outlined absolute right-2 top-2 z-10 rounded-full bg-white/90 p-1 shadow-lg" :aria-label="`Remove image ${index + 1}`">delete</button>
+              </div>
             </div>
             <textarea
               type="text"
@@ -83,7 +85,7 @@ import { onMounted } from 'vue';
             </div>
             <button
               @click="addPost"
-              class="bg-[#EB6648] text-white px-5 py-1 rounded-md mt-2"
+              class="button-primary mt-2"
             >
               post
             </button>
@@ -95,7 +97,7 @@ import { onMounted } from 'vue';
             <div class="bg-white p-5">
 <div class="flex items-center justify-between">
 <div class="flex items-center">
-  <img :src="post.User.UserInfo.profileImageUrl" class="h-10 w-10 rounded-full" alt="" />
+  <img :src="post.User.UserInfo.profileImageUrl" class="feed-avatar h-10 w-10 rounded-full" alt="" />
                <router-link
             :to="{ name: 'UserProfile', params: { userId: post?.User?.id } }"
             class="ml-2"
@@ -109,29 +111,42 @@ import { onMounted } from 'vue';
             }}</span>
           </div>
           <p class="mt-5">{{ post.title }}</p>
-          <div
-  class="w-full mt-5 flex justify-center relative"
-  v-if="post.image"
->
-  <img
-    :src="post?.image"
-    class="object-cover object-center w-50 h-96"
-    alt=""
-  />
-</div>
+          <div v-if="post.imageUrls?.length" class="feed-post-gallery w-full mt-5">
+            <img
+              :src="post.imageUrls[post.activeImage || 0]"
+              @error="post.imageUrls = []"
+              class="feed-post-image"
+              :alt="`Image ${(post.activeImage || 0) + 1} for ${post.title}`"
+            />
+            <div v-if="post.imageUrls.length > 1" class="feed-post-thumbnails" aria-label="Post images">
+              <button
+                v-for="(imageUrl, imageIndex) in post.imageUrls"
+                :key="imageUrl"
+                type="button"
+                class="feed-post-thumbnail"
+                :class="{ 'is-active': (post.activeImage || 0) === imageIndex }"
+                @click="post.activeImage = imageIndex"
+                :aria-label="`View image ${imageIndex + 1}`"
+              ><img :src="imageUrl" :alt="`Thumbnail ${imageIndex + 1}`" /></button>
+            </div>
+          </div>
           <p class="mt-5">{{ post.detail }}</p>
           <p v-if="post.exchangeEnded" class="mt-2 text-red-500">อุปกรณ์ถูกแลกเปลี่ยนเรียบร้อยแล้ว</p>
           <div class="flex justify-between items-center mt-5 border-t pt-5">
             <div class="flex gap-x-5">
-              <button @click="like(post)" class="flex items-center gap-x-2">
-                <p
-                  :class="{ like: post.like }"
-                  class="material-icons-outlined"
-                >
-                  favorite_border
-                </p>
-                <p>like ({{ post.UserFav.length }})</p>
-              </button>
+              <div class="relative" @mouseenter="hoveredLikePostId = post.id" @mouseleave="hoveredLikePostId = null">
+                <button @click="like(post)" class="flex items-center gap-x-2" :aria-label="`${post.UserFav.length} likes. Toggle your like`">
+                  <p :class="{ like: post.like }" class="material-icons-outlined">favorite_border</p>
+                  <p>Like ({{ post.UserFav.length }})</p>
+                </button>
+                <div v-if="hoveredLikePostId === post.id" class="like-tooltip" role="status">
+                  <template v-if="post.UserFav.length">
+                    <p v-for="favorite in visibleLikers(post)" :key="favorite.id">{{ likerName(favorite) }}</p>
+                    <p v-if="post.UserFav.length > 8" class="like-tooltip-more">+{{ post.UserFav.length - 8 }} more</p>
+                  </template>
+                  <p v-else>No likes yet</p>
+                </div>
+              </div>
               <button
                 @click="expandPost(post.id)"
                 class="flex items-center gap-x-2"
@@ -139,6 +154,15 @@ import { onMounted } from 'vue';
               >
                 <p class="material-icons-outlined">chat_bubble_outline</p>
                 <p>comment ({{ post.Comment.length }})</p>
+              </button>
+              <button
+                v-if="post.userId !== userId"
+                @click="$router.push({ name: 'chat', params: { userId: post.userId }, query: { postId: post.id } })"
+                class="flex items-center gap-x-2 text-[#2457d6]"
+                :aria-label="`Start chat with ${post.User?.UserInfo?.firstName || 'this member'}`"
+              >
+                <span class="material-icons-outlined">chat</span>
+                <span>Start chat</span>
               </button>
               <button
                 v-if="post.userId === userId" 
@@ -163,7 +187,7 @@ import { onMounted } from 'vue';
           <hr class="my-5">
           <div v-for="(comment, commentIndex) in post.Comment" :key="commentIndex" class="mt-3">
       <div class="flex items-center">
-        <img :src="comment.author.UserInfo.profileImageUrl" class="h-10 w-10 rounded-full" alt="" />
+        <img :src="comment.author.UserInfo.profileImageUrl" class="feed-avatar h-10 w-10 rounded-full" alt="" />
 
 
 
@@ -253,41 +277,34 @@ import { onMounted } from 'vue';
 
 <script>
 import Layout from "../components/Layout.vue";
-import axios from "axios";
+import axios from "../api";
 import Nav from "../components/Nav.vue";
-import {
-  ref as storageRef,
-  getDownloadURL,
-  listAll,
-  uploadBytes,
-} from "firebase/storage";
-import { useFirebaseStorage } from "vuefire";
 import useValidate from "@vuelidate/core";
 import { required, email, minLength } from "@vuelidate/validators";
-const storage = useFirebaseStorage();
-
 export default {
   components: {
     Layout,
     Nav
-  },
-  data() {
+  },  data() {
     return {
       v$: useValidate(),
       tags: [],
       openButton: false,
-      image: "",
-      chooseImage: "",
-      previewImage: null,
+      selectedImages: [],
+      imagePreviews: [],
       createPost: {
         title: null,
         detail: null,
         tagId: null,
       },
       posts: [],
+      offset: 0, hasNext: false, loadingPosts: false, postError: "", selectedTag: "all", postRequest: 0,
+      allPosts: [], // Store all posts for search functionality
       userId: JSON.parse(localStorage.getItem("user"))?.id ?? null,
       expandedPosts: [],
       profileImageUrl: '',
+      searchQuery: '',
+      hoveredLikePostId: null,
     };
   },
   validations() {
@@ -303,18 +320,17 @@ export default {
           required,
         },
       },
-      chooseImage: {
-        required,
-      },
     };
-  },
-  mounted() {
+  },  mounted() {
     this.checkAuth();
     this.getTag();
     this.getPost();
-    this.updatePostLikes(); // Update the likes for all posts
-    this.saveLikedPostsToLocalStorage(); //
-    this.fetchProfileImage();
+    
+    // Check if there's a search query in the URL
+    if (this.$route.query.search) {
+      this.searchQuery = this.$route.query.search;
+      this.handleSearch(this.searchQuery);
+    }
   },
   methods: {
     async showAlert(type, text) {
@@ -335,25 +351,6 @@ export default {
         title: text,
       });
     },
-    async uploadFile(file, postId) {
-      try {
-        const starsRef = storageRef(storage, `posts/${postId}/${file.name}`);
-        await uploadBytes(starsRef, file);
-      } catch (error) {
-        console.log(error);
-      }
-    },
-
-    handleImagePreview(event) {
-      const file = event.target.files[0];
-      this.chooseImage = file;
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = () => {
-        this.previewImage = reader.result;
-      };
-    },
-
     async addPost() {
       try {
         const result = await this.v$.$validate();
@@ -362,17 +359,21 @@ export default {
           throw new Error("ใส่ข้อมูลไม่ครบ");
         }
 
-        const res = await axios.post("http://localhost:8080/api/posts/", {
+        const res = await axios.post("/posts/", {
           ...this.createPost,
           userId: this.userId,
         });
-        this.uploadFile(this.chooseImage, res.data.id);
+        if (this.selectedImages.length) {
+          const formData = new FormData();
+          this.selectedImages.forEach(image => formData.append("images", image));
+          await axios.post(`/posts/${res.data.id}/images`, formData);
+        }
         this.createPost = {
           title: "",
           detail: "",
           tagId: "",
         };
-        this.previewImage = null;
+        this.clearImage();
         this.openButton = false;
         this.getPost();
         this.showAlert("success", "สร้างโพสสำเร็จ");
@@ -384,49 +385,54 @@ export default {
           this.showAlert("error", error);
         }
       }
+    },    async getPost() {
+      const request = ++this.postRequest;
+      this.loadingPosts = true; this.postError = "";
+      try {
+        const { data } = await axios.get("/posts", { params: { limit: 20, offset: this.offset, search: this.searchQuery || undefined, tagId: this.selectedTag === "all" ? undefined : this.selectedTag } });
+        if (request !== this.postRequest) return;
+        this.posts = data.map(post => ({
+          ...post,
+          imageUrls: post.Images?.length
+            ? post.Images.map(image => `/api/posts/${post.id}/images/${image.id}`)
+            : [`/api/posts/${post.id}/image`],
+          activeImage: 0,
+          like: post.UserFav.some(fav => fav.userId === this.userId),
+        }));
+        this.hasNext = data.length === 20;
+      } catch { this.postError = "Unable to load posts. Please retry."; }
+      finally { if (request === this.postRequest) this.loadingPosts = false; }
     },
 
-    async getPost() {
-  try {
-    const res = await axios.get("http://localhost:8080/api/posts/");
-    const newPosts = res.data.filter((post) => post.status === "approve");
-
-    for (const post of newPosts) {
-      const starsRef = storageRef(storage, "posts/" + post.id);
-      const search = await listAll(starsRef);
-      if (search.items.length === 0) continue;
-      const download = (await getDownloadURL(search.items[0])).toString();
-      post.image = download;
-    }
-
-    // Fetch user profile images for all unique user IDs
-    const userIds = [...new Set(newPosts.map((post) => post.User.id))];
-    const profileImagePromises = userIds.map((userId) =>
-      this.fetchProfileImage(userId)
-    );
-    const profileImages = await Promise.all(profileImagePromises);
-
-    // Update profile images for each post
-    for (const post of newPosts) {
-      const profileImageUrl = profileImages.find(
-        (image) => image.userId === post.User.id
-      )?.url;
-      if (profileImageUrl) {
-        post.User.UserInfo.profileImageUrl = profileImageUrl;
+    handleImageSelection(event) {
+      const files = Array.from(event.target.files || []);
+      if (!files.length) return;
+      if (files.length > 3) {
+        this.showAlert("error", "You can select a maximum of 3 images.");
+        event.target.value = "";
+        return;
       }
-
-      // Update profile images for comment authors
-      for (const comment of post.Comment) {
-        const commentProfileImageUrl = await this.fetchCommentProfileImage(comment.authorId);
-        comment.author.UserInfo.profileImageUrl = commentProfileImageUrl;
+      if (files.some(file => !file.type.startsWith("image/") || file.size > 5 * 1024 * 1024)) {
+        this.showAlert("error", "Use image files up to 5 MB each.");
+        event.target.value = "";
+        return;
       }
-    }
-    
-    this.posts = newPosts;
-  } catch (error) {
-    console.log(error);
-  }
-},
+      this.clearImage();
+      this.selectedImages = files;
+      this.imagePreviews = files.map(file => URL.createObjectURL(file));
+      event.target.value = "";
+    },
+
+    clearImage() {
+      this.imagePreviews.forEach(URL.revokeObjectURL);
+      this.selectedImages = [];
+      this.imagePreviews = [];
+    },
+    removeSelectedImage(index) {
+      URL.revokeObjectURL(this.imagePreviews[index]);
+      this.selectedImages.splice(index, 1);
+      this.imagePreviews.splice(index, 1);
+    },
 
 
 
@@ -434,10 +440,8 @@ export default {
 
 async fetchProfileImage(userId) {
   try {
-    const starsRef = storageRef(storage, `users/${userId}`);
-    const search = await listAll(starsRef);
-    const downloadURL = (await getDownloadURL(search.items[0])).toString();
-    return { userId, url: downloadURL };
+    const response = await axios.get(`/user/profile/${userId}`);
+    return { userId, url: response.data.UserInfo?.profileImageUrl || null };
   } catch (error) {
     console.log(error);
     return { userId, url: null };
@@ -449,10 +453,8 @@ async fetchProfileImage(userId) {
 
 async fetchCommentProfileImage(userId) {
   try {
-    const starsRef = storageRef(storage, `users/${userId}`);
-    const search = await listAll(starsRef);
-    const downloadURL = (await getDownloadURL(search.items[0])).toString();
-    return downloadURL;
+    const response = await axios.get(`/user/profile/${userId}`);
+    return response.data.UserInfo?.profileImageUrl || null;
   } catch (error) {
     console.log(error);
     return null;
@@ -486,7 +488,7 @@ formatTime(time) {
 async endExchange(postId) {
   try {
     const response = await axios.put(
-      `http://localhost:8080/api/posts/end-exchange/${postId}/${this.userId}`
+      `/posts/end-exchange/${postId}/${this.userId}`
     );
     if (response.data.success) {
       const postIndex = this.posts.findIndex((post) => post.id === postId);
@@ -521,7 +523,7 @@ async endExchange(postId) {
       );
       if (commentIndex > -1) {
         const response = await axios.delete(
-          `http://localhost:8080/api/comment/${commentId}/${this.userId}`
+          `/comment/${commentId}/${this.userId}`
         );
         this.posts[postIndex].Comment.splice(commentIndex, 1); // Remove the comment from the post's Comment array
         this.showAlert("success", "ลบความคิดเห็นสำเร็จ");
@@ -537,7 +539,7 @@ async endExchange(postId) {
 
     async getTag() {
       try {
-        const res = await axios.get("http://localhost:8080/api/tags/");
+        const res = await axios.get("/tags/");
         this.tags = res.data;
       } catch (error) {
         console.log(error);
@@ -558,14 +560,14 @@ async endExchange(postId) {
       // Check if the post doesn't belong to the user
       throw new Error("ไม่สามารถลบโพสของผู้อื่นได้");
     }
-    const response = await axios.delete(`http://localhost:8080/api/posts/${postId}/${this.userId}`);
+    const response = await axios.delete(`/posts/${postId}/${this.userId}`);
     this.posts = this.posts.filter((p) => p.id !== postId); // Remove the post from the list
 
     // Check if the post is in the user's favorite posts
     const userFavoritePost = post.UserFav.find((fav) => fav.userId === this.userId);
     if (userFavoritePost) {
       // If the post is in the user's favorite posts, delete it from the favorites table
-      await axios.delete(`http://localhost:8080/api/posts/fav/${userFavoritePost.id}`);
+      await axios.delete(`/posts/fav/${userFavoritePost.id}`);
       post.UserFav = post.UserFav.filter((fav) => fav.userId !== this.userId); // Update the UserFav array for the post
     }
 
@@ -593,7 +595,7 @@ async toggleEditComment(postId, commentId) {
         // Update the comment content
         try {
           const response = await axios.put(
-            `http://localhost:8080/api/comment/${commentId}/${this.userId}`,
+            `/comment/${commentId}/${this.userId}`,
             {
               content: comment.updatedContent,
             }
@@ -622,7 +624,7 @@ async addComment(postId) {
   try {
     const postIndex = this.posts.findIndex((post) => post.id === postId);
     if (postIndex > -1) {
-      const response = await axios.post("http://localhost:8080/api/comment/", {
+      const response = await axios.post("/comment/", {
         content: this.posts[postIndex].commentText,
         authorId: this.userId,
         postId: postId,
@@ -660,28 +662,36 @@ async addComment(postId) {
 
 
 
-
-
     async like(post) {
       try {
         const check = post.UserFav.find((fav) => fav.userId === this.userId);
         if (check) {
           // User has already liked the post, so remove the like
-          await axios.delete(`http://localhost:8080/api/posts/fav/${check.id}`);
+          await axios.delete(`/posts/fav/${check.id}`);
           post.UserFav = post.UserFav.filter((fav) => fav.userId !== this.userId); // Update the UserFav array for the post
+          post.like = false; // Set like status to false
         } else {
           // User hasn't liked the post, so add the like
-          const response = await axios.post(`http://localhost:8080/api/posts/fav/`, {
+          const response = await axios.post(`/posts/fav/`, {
             userId: this.userId,
             postId: post.id,
           });
           const newFav = response.data; // The newly created UserFav object
           post.UserFav.push(newFav); // Add the new UserFav to the UserFav array for the post
+          post.like = true; // Set like status to true
         }
-        post.like = !post.like; // Toggle the like status for the post
       } catch (error) {
         console.log(error);
       }
+    },
+    visibleLikers(post) {
+      return post.UserFav.slice(0, 8);
+    },
+    likerName(favorite) {
+      if (favorite.userId === this.userId) return 'You';
+      const info = favorite.User?.UserInfo;
+      const name = [info?.firstName, info?.lastName].filter(Boolean).join(' ');
+      return name || info?.username || 'Member';
     },
 
 
@@ -690,7 +700,7 @@ async addComment(postId) {
 async getPostLikes(postId) {
   try {
     const res = await axios.get(
-      `http://localhost:8080/api/posts/fav?postId=${postId}`
+      `/posts/fav?postId=${postId}`
     );
     return res.data;
   } catch (error) {
@@ -709,93 +719,15 @@ expandPost(postId) {
       this.expandedPosts.splice(index, 1);
     } else {
       // Post is not expanded, so expand it
-      this.expandedPosts.push(postId);
-    }
+      this.expandedPosts.push(postId);    }
   },
 
 
 
 
-async updatePostLikes() {
-      try {
-        for (const post of this.posts) {
-          // No need to call getPostLikes here
-          post.UserFav = await this.getPostLikes(post.id); // Update the likes for each post
-        }
-      } catch (error) {
-        console.log(error);
-      }
-    },
-
-saveLikedPostsToLocalStorage() {
-      const likedPostIds = this.posts.reduce((ids, post) => {
-        if (post.UserFav.some((fav) => fav.userId === this.userId)) {
-          ids.push(post.id);
-        }
-        return ids;
-      }, []);
-      localStorage.setItem('likedPosts', JSON.stringify(likedPostIds));
-    },
-
-
-    loadLikedPostsFromLocalStorage() {
-      const likedPostIds = JSON.parse(localStorage.getItem('likedPosts')) || [];
-      for (const post of this.posts) {
-        post.like = likedPostIds.includes(post.id);
-      }
-    },
-
-
-
-
-    async filterTag(tagId) {
-  try {
-    console.log('Selected tag:', tagId); // Log the selected tag
-    const res = await axios.get("http://localhost:8080/api/posts/"); // Fetch all posts from the server
-    let newPosts = res.data.filter((post) => post.status === "approve");
-    for (const post of newPosts) {
-      const starsRef = storageRef(storage, "posts/" + post.id);
-      const search = await listAll(starsRef);
-      if (search.items.length === 0) continue;
-      const download = (await getDownloadURL(search.items[0])).toString();
-      post.image = download;
-    }
-    if (tagId !== "all") {
-      // Filter posts based on tagId
-      newPosts = newPosts.filter((post) => post.Tag.id === +tagId);
-    }
-
-    // Fetch user profile images for all unique user IDs in the filtered posts
-    const userIds = [...new Set(newPosts.map((post) => post.User.id))];
-    const profileImagePromises = userIds.map((userId) =>
-      this.fetchProfileImage(userId)
-    );
-    const profileImages = await Promise.all(profileImagePromises);
-
-    // Update profile images for each user in the filtered posts
-    for (const post of newPosts) {
-      const profileImageUrl = profileImages.find(
-        (image) => image.userId === post.User.id
-      )?.url;
-      if (profileImageUrl) {
-        post.User.UserInfo.profileImageUrl = profileImageUrl;
-      }
-      
-      // Update profile images for comment authors
-      for (const comment of post.Comment) {
-        const commentProfileImageUrl = await this.fetchCommentProfileImage(comment.authorId);
-        comment.author.UserInfo.profileImageUrl = commentProfileImageUrl;
-      }
-    }
-
-    this.posts = newPosts; // Replace existing posts with filtered posts
-  } catch (error) {
-    console.log(error);
-  }
-},
-
-
-
+    handleSearch(query) { this.searchQuery = query; this.offset = 0; this.getPost(); },
+    clearSearch() { this.searchQuery = ""; this.offset = 0; this.$router.replace({ path: "/" }); this.$refs.navComponent?.clearSearchInput(); this.getPost(); },
+    filterTag(tagId) { this.selectedTag = tagId; this.offset = 0; this.getPost(); },
 
     checkAuth() {
       !localStorage.getItem("token") && this.$router.push("/login");
@@ -803,7 +735,7 @@ saveLikedPostsToLocalStorage() {
 
     async checkUserInfo() {
       try {
-        const res = await axios.get("http://localhost:8080/api/users/", {
+        const res = await axios.get("/users/", {
           params: {
             id: this.userId,
           },
@@ -818,3 +750,27 @@ saveLikedPostsToLocalStorage() {
   },
 };
 </script>
+
+<style scoped>
+.feed-avatar {
+  position: relative;
+  flex-shrink: 0;
+  object-fit: cover;
+  transform-origin: left center;
+  transition: transform 180ms ease, box-shadow 180ms ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .feed-avatar:hover {
+    z-index: 20;
+    transform: scale(2.5);
+    box-shadow: 0 0 0 2px white, 0 6px 18px rgb(15 23 42 / 25%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .feed-avatar {
+    transition: none;
+  }
+}
+</style>

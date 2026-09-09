@@ -1,30 +1,36 @@
 <template>
   <Layout>
     <Nav />
-    <div class="w-full h-screen flex items-center justify-center bg-[#e5e7e9]">
-      <div class="user-profile mb-10 w-4/12 h-100 flex flex-col items-center justify-center content-center rounded-md shadow-md bg-white">
-        <h1 class="text-3xl text-[#1E4F79] mt-3 font-bold">User Profile</h1>
-        <div class="user-info text-xl mb-3">
-          <div class="profile-image">
-            <img :src="profileImageUrl" class="w-60 h-60 bg-gray-50 relative mb-5 drop-shadow-md hover:drop-shadow-xl" alt="" />
-          </div>
-          <div class="user-details">
-            <div class="detail-row">
-              <div>
-                <p><span class="detail-label">First Name:</span> {{ userInfo.firstName }}</p>
-              </div>
-              <div>
-                <p><span class="detail-label ml-8">Last Name:</span> {{ userInfo.lastName }}</p>
-              </div>
-            </div>
-            <p><span class="detail-label ">Phone:</span> {{ userInfo.phone }}</p>
-            <p><span class="detail-label">Address:</span> {{ userInfo.address }}</p>
-          </div>
+    <div class="profile-page">
+      <div class="surface profile-card">
+        <h1 class="section-title">Profile</h1>
+        <div class="profile-image mt-5">
+          <img
+            v-if="userInfo.profileImageUrl"
+            :src="userInfo.profileImageUrl"
+            alt="User profile image"
+          />
+          <div v-else class="profile-avatar" aria-label="No profile image">{{ initials }}</div>
         </div>
-        <button @click="this.$router.push('/')"
-          class="p-5 bg-[#EB6648] text-white px-5 py-2 rounded-md mb-4 hover:bg-[#df593a] drop-shadow-lg"
-        >
-          Back To Post
+        <div class="profile-details">
+          <div><small>First name</small>{{ userInfo.firstName || '—' }}</div>
+          <div><small>Last name</small>{{ userInfo.lastName || '—' }}</div>
+          <div><small>Phone number</small>{{ userInfo.phone || '—' }}</div>
+          <template v-if="canViewAllDetails">
+            <div><small>Username</small>{{ userInfo.username || '—' }}</div>
+            <div><small>Email</small>{{ accountInfo.email || '—' }}</div>
+            <div><small>Address</small>{{ userInfo.address || '—' }}</div>
+            <div><small>Role</small>{{ accountInfo.role === 'customer' ? 'Normal User' : accountInfo.role || '—' }}</div>
+            <div><small>Account created</small>{{ formatDate(accountInfo.createdAt) }}</div>
+          </template>
+        </div>
+        <button
+          v-if="currentUserId && currentUserId !== userId"
+          @click="$router.push({ name: 'chat', params: { userId } })"
+          class="button-primary mb-3"
+        >Start chat</button>
+        <button @click="$router.push('/')" class="button-secondary">
+          Back to posts
         </button>
       </div>
     </div>
@@ -59,6 +65,18 @@
   border-radius: 50%;
 }
 
+.profile-image-placeholder {
+  width: 200px;
+  height: 200px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: #dbeafe;
+  color: #1e4f79;
+  font-size: 3rem;
+  font-weight: 700;
+}
+
 .user-details {
   margin-top: 20px;
 }
@@ -77,9 +95,7 @@
 
 
 <script>
-import axios from "axios";
-import { ref as storageRef, getDownloadURL, listAll } from "firebase/storage";
-import { useFirebaseStorage } from "vuefire";
+import axios from "../api";
 import Layout from "../components/Layout.vue";
 import Nav from "../components/Nav.vue";
 
@@ -88,70 +104,60 @@ export default {
     Layout,
     Nav,
   },
-
-
-
-  setup() {
-    const storage = useFirebaseStorage();
-    return { storage };
-  },
   name: 'UserProfile',
   props: {
     userId: {
-      type: Number,
+      type: String,
       required: true
     }
   },
   data() {
     return {
+      currentUserId: JSON.parse(localStorage.getItem("user"))?.id ?? null,
+      canViewAllDetails: false,
+      accountInfo: {},
       userInfo: {
         firstName: '',
         lastName: '',
         phone: '',
-        address: ''
+        address: '',
+        profileImageUrl: '',
       },
-      profileImageUrl: ''
     };
+  },
+  computed: {
+    initials() {
+      return `${this.userInfo.firstName?.[0] || ''}${this.userInfo.lastName?.[0] || ''}`.toUpperCase() || '?';
+    },
   },
   mounted() {
     // Fetch user information from an API endpoint using the userId prop
     this.fetchUserInfo();
 
-    this.fetchProfileImage(this.userId)
-      .then((profileImageUrl) => {
-        this.profileImageUrl = profileImageUrl;
-      })
-      .catch((error) => {
-        console.log(error);
-      });
+  },
+  watch: {
+    userId() {
+      this.fetchUserInfo();
+    },
   },
   methods: {
+    formatDate(value) {
+      return value ? new Date(value).toLocaleString() : '—';
+    },
     async fetchUserInfo() {
+      this.canViewAllDetails = false;
+      this.accountInfo = {};
+      this.userInfo = {};
       try {
-        const response = await axios.get(`http://localhost:8080/api/user/profile/${this.userId}`);
-        const { firstName, lastName, phone, address } = response.data.UserInfo;
-        this.userInfo = {
-          firstName,
-          lastName,
-          phone,
-          address
-        };
+        const response = await axios.get(`/user/profile/${this.userId}`);
+        if (response.data.id !== this.userId) return;
+        this.canViewAllDetails = response.data.canViewAllDetails === true;
+        this.accountInfo = response.data;
+        this.userInfo = response.data.UserInfo || {};
       } catch (error) {
         console.log(error);
       }
     },
-
-    async fetchProfileImage(userId) {
-      try {
-        const starsRef = storageRef(this.storage, `users/${userId}`);
-        const search = await listAll(starsRef);
-        const downloadURL = (await getDownloadURL(search.items[0])).toString();
-        return downloadURL;
-      } catch (error) {
-        console.log(error);
-        return null;
-      }
-    }
   }
 };
 </script>

@@ -1,12 +1,14 @@
 import express from "express";
-import { PrismaClient } from "@prisma/client";
-const prisma = new PrismaClient();
+import { prisma } from "./db.js";
+import { authenticate, adminOnly, ownParam } from "./middleware/auth.js";
+import { publicUser, pageArgs, deletePost } from "./shared.js";
+
 const router = express.Router();
 
 // GET /comments
 router.get("/", async (req, res) => {
   try {
-    const comments = await prisma.comment.findMany();
+    const comments = await prisma.comment.findMany({ where: { post: { status: "approve" } }, ...pageArgs(req.query) });
     res.json(comments);
   } catch (error) {
     console.error(error);
@@ -15,12 +17,17 @@ router.get("/", async (req, res) => {
 });
 
 // POST /comments
-router.post("/", async (req, res) => {
-  const { content, authorId, postId } = req.body;
+router.post("/", authenticate, async (req, res) => {
+  const { content, postId } = req.body;
+  const authorId = req.user.id;
+  if (typeof content !== "string" || !content.trim() || content.length > 2000) return res.status(400).json({ message: "Comment must be 1–2000 characters" });
   console.log(req.body);
 
   try {
+    const post = await prisma.post.findFirst({ where: { id: postId, status: "approve" } });
+    if (!post) return res.status(404).json({ message: "Post not found" });
     const comment = await prisma.comment.create({
+      include: { author: { select: publicUser } },
       data: {
         content,
         author: { connect: { id: authorId } },
@@ -36,7 +43,7 @@ router.post("/", async (req, res) => {
 });
 
 // DELETE /comments/:id
-router.delete("/:id/:userId", async (req, res) => {
+router.delete("/:id/:userId", authenticate, ownParam("userId"), async (req, res) => {
     const { id, userId } = req.params;
   
     try {
@@ -64,9 +71,10 @@ router.delete("/:id/:userId", async (req, res) => {
     }
   });
   
-  router.put("/:id/:userId", async (req, res) => {
+  router.put("/:id/:userId", authenticate, ownParam("userId"), async (req, res) => {
   const { id, userId } = req.params;
   const { content } = req.body;
+  if (typeof content !== "string" || !content.trim() || content.length > 2000) return res.status(400).json({ message: "Comment must be 1–2000 characters" });
 
   try {
     // Fetch the existing comment

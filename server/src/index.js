@@ -1,28 +1,6 @@
-import bodyPaser from "body-parser";
-import express from "express";
-import cors from "cors";
+import app from "./app.js";
 
-import user from "./user.js";
-import comment from "./comment.js";
-import post from "./post.js";
-import tags from "./tag.js";
-
-const app = express();
-const router = express.Router();
-const PORT = 8080;
-
-app.use(cors({ origin: "*" }));
-app.use(bodyPaser.json());
-app.use(bodyPaser.urlencoded({ extended: true }));
-
-app.use(
-  "/api",
-  router.use("/user", user),
-  router.use("/comment", comment),
-  router.use("/posts", post),
-  router.use("/tags", tags)
-  
-);
+const PORT = process.env.PORT || 8081;
 
 app.listen(PORT, () => {
   console.log(`server is runing on port http://localhost:${PORT}`);

@@ -1,9 +1,11 @@
 <template>
   <Layout>
-    <div class="flex flex-col items-center justify-center">
-      <h1 class="text-2xl font-bold mb-5">My Favorite Posts</h1>
+    <Nav />
+    <div class="feed-shell">
+      <h1 class="section-title">Saved posts</h1>
+      <p class="section-subtitle">Posts you liked.</p>
       <div v-if="favoritePosts.length === 0 && !loading" class="text-gray-500">
-        No favorite posts found.
+        No liked posts yet.
       </div>
       <div v-else>
         <div v-for="(post, index) in favoritePosts" :key="index">
@@ -15,29 +17,33 @@
     class="h-10 w-10 rounded-full"
     alt=""
   />
-        <span class="ml-2" @click="redirectToUserProfile(post?.Post?.User?.UserInfo?.userId)">
+        <button
+          type="button"
+          class="ml-2 text-left"
+          @click="redirectToUserProfile(post?.Post?.User?.id)"
+        >
   {{ post?.Post?.User?.UserInfo?.firstName }}
   {{ post?.Post?.User?.UserInfo?.lastName }}
-</span>
+        </button>
       </div>
       <span class="rounded-full px-4 bg-gray-200">
         {{ post?.Post?.Tag?.name }}
       </span>
     </div>
     <p class="mt-5">{{ post?.Post?.title }}</p>
-    <div
-      class="w-full mt-5 flex justify-center relative"
-      v-if="post?.image"
-    >
-      <img :src="post?.image" class="h-[300px] w-[300px]" alt="" />
-    </div>
     <p class="mt-5">{{ post?.Post?.detail }}</p>
+    <img
+      v-if="post?.Post?.image"
+      :src="post.Post.image"
+      class="mt-5 w-full max-h-96 rounded-md object-cover"
+      alt="Post image"
+      @error="post.Post.image = null"
+    />
     <p v-if="post?.Post?.exchangeEnded === true" class="mt-2 text-red-500">อุปกรณ์ถูกแลกเปลี่ยนเรียบร้อยแล้ว</p>
     <div class="flex justify-between items-center mt-5 border-t pt-5">
-      <div class="flex gap-x-5">
-        <button @click="like(post)" class="flex items-center gap-x-2">
+      <div class="flex gap-x-5">        <button @click="like(post)" class="flex items-center gap-x-2">
           <p
-            :class="{ like: post?.like }"
+            :class="{ like: post?.Post?.like }"
             class="material-icons-outlined"
           >
             favorite_border
@@ -163,18 +169,13 @@
 </style>
 
 <script>
-import axios from "axios";
-import { ref as storageRef, getDownloadURL, listAll } from "firebase/storage";
-import { useFirebaseStorage } from "vuefire";
+import axios from "../api";
 import Layout from "../components/Layout.vue";
 import Nav from "../components/Nav.vue";
 
 export default {
-  setup() {
-    const storage = useFirebaseStorage();
-    return { storage };
-  },
   components: {
+    Layout,
     Nav,
   },
   data() {
@@ -190,24 +191,22 @@ export default {
     }
     //this.getPost();
   },
-  methods: {
-    async getFavoritePosts() {
+  methods: {    async getFavoritePosts() {
   try {
     this.loading = true;
-    const res = await axios.get(`http://localhost:8080/api/user/fav/${this.userId}`);
+    const res = await axios.get(`/user/fav/${this.userId}`);
     const favoritePosts = res.data.filter((post) => post.Post.status === 'approve');
     this.favoritePosts = favoritePosts;
 
     for (const post of this.favoritePosts) {
-      const starsRef = storageRef(this.storage, `posts/${post.postId}`);
-      const search = await listAll(starsRef);
-      if (search.items.length > 0) {
-        const download = await getDownloadURL(search.items[0]);
-        post.image = download;
-      }
-
+      post.Post.image = `/api/posts/${post.Post.id}/image`;
       const profileImageUrl = await this.fetchProfileImage(post?.Post?.User?.UserInfo?.userId);
-      post.Post.User.UserInfo.profileImageUrl = profileImageUrl;
+      if (profileImageUrl) {
+        post.Post.User.UserInfo.profileImageUrl = profileImageUrl;
+      }
+      
+      // Set the like status based on whether user has liked this post
+      post.Post.like = post.Post.UserFav.some((fav) => fav.userId === this.userId);
     }
 
     this.loading = false;
@@ -220,10 +219,8 @@ export default {
 
 async fetchProfileImage(userId) {
   try {
-    const starsRef = storageRef(this.storage, `users/${userId}`);
-    const search = await listAll(starsRef);
-    const downloadURL = (await getDownloadURL(search.items[0])).toString();
-    return downloadURL;
+    const response = await axios.get(`/user/profile/${userId}`);
+    return response.data.UserInfo?.profileImageUrl || null;
   } catch (error) {
     console.log(error);
     return null;
@@ -238,8 +235,6 @@ async fetchProfileImage(userId) {
 redirectToUserProfile(userId) {
   this.$router.push({ name: 'UserProfile', params: { userId: userId } });
 },
-
-
     async like(choose) {
       const post = choose.Post;
       try {
@@ -248,14 +243,15 @@ redirectToUserProfile(userId) {
         console.log(userLike);
         if (userLike) {
           await axios.delete(
-            `http://localhost:8080/api/posts/fav/${userLike.id}`
+            `/posts/fav/${userLike.id}`
           );
           post.UserFav = post.UserFav.filter(
             (fav) => fav.userId !== this.userId
           );
+          post.like = false; // Set like status to false
         } else {
           const response = await axios.post(
-            `http://localhost:8080/api/posts/fav/`,
+            `/posts/fav/`,
             {
               userId: this.userId,
               postId: post.id,
@@ -263,10 +259,9 @@ redirectToUserProfile(userId) {
           );
           const newFav = response.data;
           post.UserFav.push(newFav);
+          post.like = true; // Set like status to true
         }
         this.getFavoritePosts()
-        post.like = !post;
-        post.like; // Toggle the like status for the post
       } catch (error) {
         console.log(error);
       }
@@ -275,7 +270,7 @@ redirectToUserProfile(userId) {
       this.$router.push(`/post/${postId}`);
     },
   },
-  components: { Layout },
+  components: { Layout, Nav },
 };
 </script>
 

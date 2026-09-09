@@ -1,0 +1,14 @@
+BEGIN;
+ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "sessionVersion" INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE "Message" ADD COLUMN IF NOT EXISTS "hiddenFor" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[];
+ALTER TABLE "Message" ADD COLUMN IF NOT EXISTS "clientId" TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS "Message_clientId_key" ON "Message"("clientId");
+CREATE TABLE IF NOT EXISTS "PasswordReset" (
+  "id" TEXT PRIMARY KEY,
+  "tokenHash" TEXT NOT NULL,
+  "userId" TEXT NOT NULL REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE,
+  "expiresAt" TIMESTAMP(3) NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "PasswordReset_tokenHash_key" ON "PasswordReset"("tokenHash");
+CREATE INDEX IF NOT EXISTS "PasswordReset_userId_idx" ON "PasswordReset"("userId");
+COMMIT;

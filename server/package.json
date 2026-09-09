@@ -5,7 +5,10 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "dev": "nodemon ./src/index.js"
+    "test": "node --test",
+    "dev": "nodemon ./src/index.js",
+    "db:push": "prisma db push",
+    "db:generate": "prisma generate"
   },
   "keywords": [],
   "author": "",
@@ -18,6 +21,7 @@
     "cors": "^2.8.5",
     "express": "^4.18.2",
     "jsonwebtoken": "^9.0.0",
+    "multer": "^2.3.0",
     "nodemon": "^2.0.22",
     "prisma": "^4.13.0",
     "yup": "^1.1.1"

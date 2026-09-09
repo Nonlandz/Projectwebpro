@@ -1,6 +1,6 @@
 <template>
-  <main class="w-screen min-h-screen flex flex-col items-center bg-zinc-100">
-    <div class="w-full flex flex-grow flex-col items-center">
+  <main class="app-shell flex flex-col">
+    <div class="w-full flex flex-grow flex-col">
       <slot />
     </div>
     <Footer />

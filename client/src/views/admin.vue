@@ -1,26 +1,20 @@
 <template>
   <Layout>
     <Nav />
-    <div class="container mx-auto px-4 flex flex-col items-center">
-      <h1 class="text-3xl font-bold mb-5 mt-16">Welcome to Admin Page</h1>
-      <div class="flex mb-4">
-        <input
-          type="text"
-          v-model="tagName"
-          placeholder="Enter tag name"
-          class="mr-2 px-4 py-2 border border-gray-300 rounded-md"
-        />
-        <button @click="addTag" class="px-4 py-2 bg-blue-500 text-white rounded-md">Add Tag</button>
-      </div>
-      <div>
-        <h2 class="text-2xl font-bold mb-2">Tags:</h2>
-        <ul class="tag-list">
-          <li v-for="tag in tags" :key="tag.id" class="flex items-center mb-2">
-            <span class="mr-2">{{ tag.name }}</span>
-            <button @click="deleteTag(tag.id)" class="px-2 py-1 bg-red-500 text-white rounded-md">Delete</button>
-          </li>
-        </ul>
-      </div>
+    <div class="admin-page">
+      <section class="surface admin-panel">
+        <h1 class="section-title">Moderation</h1>
+        <p class="section-subtitle">Review posts and manage categories.</p>
+        <div class="flex gap-2">
+          <input v-model="tagName" placeholder="New category" @keyup.enter="addTag" />
+          <button @click="addTag" class="button-primary whitespace-nowrap">Add category</button>
+        </div>
+        <div class="mt-5 flex flex-wrap gap-2">
+          <span v-for="tag in tags" :key="tag.id" class="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-sm">
+            {{ tag.name }}<button @click="deleteTag(tag.id)" class="material-icons-outlined text-base text-slate-500 hover:text-red-600" :aria-label="`Delete ${tag.name}`">close</button>
+          </span>
+        </div>
+      </section>
 
       <!-- <div v-if="selectedPost">
         <h2 class="text-2xl font-bold mt-4">Post Details:</h2>
@@ -29,32 +23,34 @@
         <p><strong>Detail:</strong> {{ selectedPost.detail }}</p>
       </div> -->
 
-      <div>
-        <h2 class="text-2xl font-bold mb-2">Posts:</h2>
+      <section class="surface admin-panel mt-5">
+        <div class="flex items-baseline justify-between gap-4"><h2 class="section-title text-xl">Posts</h2><span class="text-sm text-slate-500">{{ posts.length }} shown</span></div>
         <ul class="post-list">
-          <li v-for="post in posts" :key="post.id" class="flex items-center mb-2">
-            <span class="mr-2">{{ post.title }} - <span :class="getStatusClass(post.status)">{{ post.status }}</span></span>
+          <li v-for="post in posts" :key="post.id" class="item-row">
+            <span><strong class="block">{{ post.title }}</strong><span class="status" :class="post.status">{{ post.status }}</span><span v-if="post.exchangeEnded" class="status exchange-completed">Exchange completed</span></span>
+            <div class="item-actions">
             <template v-if="post.status === 'pending'">
-              <button @click="approvePost(post.id)" class="px-2 py-1 bg-green-500 text-white rounded-md">Approve</button>
-              <button @click="noneApprovePost(post.id)" class="px-2 py-1 bg-red-500 text-white rounded-md">None Approve</button>
+              <button @click="approvePost(post.id)" class="button-primary">Approve</button><button @click="noneApprovePost(post.id)" class="button-secondary">Reject</button>
             </template>
             <template v-else-if="post.status === 'approve'">
-              <button @click="noneApprovePost(post.id)" class="px-2 py-1 bg-red-500 text-white rounded-md">None Approve</button>
+              <button @click="noneApprovePost(post.id)" class="button-secondary">Reject</button>
             </template>
             <template v-else>
-              <button @click="approvePost(post.id)" class="px-2 py-1 bg-green-500 text-white rounded-md">Approve</button>
+              <button @click="approvePost(post.id)" class="button-primary">Approve</button>
             </template>
-            <button @click="showPostDetails(post)" class="px-2 py-1 bg-blue-500 text-white rounded-md ml-2">Details</button>
+            <button @click="showPostDetails(post)" class="button-secondary">Details</button>
+            </div>
           </li>
         </ul>
-      </div>
+        <p v-if="postError" role="alert">{{ postError }} <button @click="getPosts()">Retry</button></p>
+      </section>
     </div>
   </Layout>
 </template>
 
 <script>
 import Layout from "../components/Layout.vue";
-import axios from "axios";
+import axios from "../api";
 import Swal from "sweetalert2";
 import Nav from "../components/Nav.vue";
 
@@ -68,6 +64,7 @@ export default {
       tagName: "",
       tags: [],
       posts: [],
+      offset: 0, hasNext: false, loadingPosts: false, postError: "",
       selectedPost: null, // Track the selected post
     };
   },
@@ -79,7 +76,7 @@ export default {
   methods: {
     async addTag() {
       try {
-        const response = await axios.post("http://localhost:8080/api/tags/", {
+        const response = await axios.post("/tags/", {
           name: this.tagName,
         });
 
@@ -98,7 +95,7 @@ export default {
     },
     async deleteTag(tagId) {
       try {
-        await axios.delete(`http://localhost:8080/api/tags/${tagId}`);
+        await axios.delete(`/tags/${tagId}`);
         this.tags = this.tags.filter((tag) => tag.id !== tagId);
 
         this.showAlertWithSwal("success", "Tag deleted successfully");
@@ -126,23 +123,23 @@ export default {
     },
     async getTags() {
       try {
-        const response = await axios.get("http://localhost:8080/api/tags");
+        const response = await axios.get("/tags");
         this.tags = response.data;
       } catch (error) {
         console.error("Error fetching tags:", error);
       }
-    },
-    async getPosts() {
+    },    async getPosts() {
+      this.loadingPosts = true; this.postError = "";
       try {
-        const response = await axios.get("http://localhost:8080/api/posts");
-        this.posts = response.data;
+        const response = await axios.get("/posts", { params: { scope: "admin", offset: this.offset, limit: 20 } });
+        this.posts = response.data; this.hasNext = response.data.length === 20;
       } catch (error) {
-        console.error("Error fetching posts:", error);
-      }
+        this.postError = "Unable to load posts. Please try again.";
+      } finally { this.loadingPosts = false; }
     },
     async approvePost(postId) {
       try {
-        await axios.put(`http://localhost:8080/api/posts/${postId}`, { status: "approve" });
+        await axios.put(`/posts/${postId}`, { status: "approve" });
         const index = this.posts.findIndex((post) => post.id === postId);
         if (index !== -1) {
           this.posts[index].status = "approve";
@@ -155,7 +152,7 @@ export default {
     },
     async noneApprovePost(postId) {
       try {
-        await axios.put(`http://localhost:8080/api/posts/${postId}`, { status: "noneApprove" });
+        await axios.put(`/posts/${postId}`, { status: "noneApprove" });
         const index = this.posts.findIndex((post) => post.id === postId);
         if (index !== -1) {
           this.posts[index].status = "noneApprove";
@@ -166,18 +163,63 @@ export default {
         this.showAlertWithSwal("error", "Failed to none approve post");
       }
     },
-    showPostDetails(post) {
-      // Set the selected post
+    async showPostDetails(post) {
       this.selectedPost = post;
+      const imageUrls = await this.postImageUrls(post);
+      const title = this.escapeHtml(post.title || "Untitled item");
+      const detail = this.escapeHtml(post.detail || "No description added yet.").replace(/\n/g, "<br>");
+      const status = this.escapeHtml(this.statusLabel(post.status));
 
-      // Show an alert with post details
       Swal.fire({
-        icon: 'info',
-        title: post.title,
+        title: "Item details",
         html: `
-          <strong>Status:</strong> ${post.status}<br>
-          <strong>Detail:</strong> ${post.detail}
-        `,
+          ${imageUrls.length ? `<div class="exchange-post-gallery"><img class="exchange-post-detail-image" src="${imageUrls[0]}" alt="Image 1 for ${title}">${imageUrls.length > 1 ? `<div class="exchange-post-thumbnails">${imageUrls.map((url, index) => `<button type="button" class="exchange-post-thumbnail${index === 0 ? ' is-active' : ''}" data-image="${url}" aria-label="View image ${index + 1}"><img src="${url}" alt="Image ${index + 1}"></button>`).join("")}</div>` : ""}</div>` : '<div class="exchange-post-image-placeholder" aria-hidden="true">✦</div>'}
+          <div class="exchange-post-detail-content">
+            <span class="exchange-post-status exchange-post-status--${this.statusClass(post.status)}">${status}</span>
+            <h2>${title}</h2>
+            <p>${detail}</p>
+          </div>`,
+        showCloseButton: true,
+        confirmButtonText: "Done",
+        buttonsStyling: false,
+        customClass: {
+          popup: "exchange-post-modal",
+          title: "exchange-post-modal-label",
+          htmlContainer: "exchange-post-modal-body",
+          confirmButton: "exchange-post-modal-confirm",
+          closeButton: "exchange-post-modal-close",
+        },
+        didOpen: () => this.bindGalleryEvents(),
+      });
+    },
+    escapeHtml(value) {
+      return String(value).replace(/[&<>'"]/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" }[character]));
+    },
+    statusLabel(status) {
+      return ({ approve: "Approved", pending: "Pending review", noneApprove: "Not approved" })[status] || "Unknown status";
+    },
+    statusClass(status) {
+      return ({ approve: "approved", pending: "pending", noneApprove: "not-approved" })[status] || "unknown";
+    },
+    async postImageUrls(post) {
+      if (post.Images?.length) return post.Images.map(image => `/api/posts/${encodeURIComponent(post.id)}/images/${encodeURIComponent(image.id)}`);
+      const legacyUrl = `/api/posts/${encodeURIComponent(post.id)}/image`;
+      return await this.postImageExists(legacyUrl) ? [legacyUrl] : [];
+    },
+    bindGalleryEvents() {
+      const modal = Swal.getHtmlContainer();
+      const mainImage = modal?.querySelector(".exchange-post-detail-image");
+      modal?.querySelectorAll(".exchange-post-thumbnail").forEach(button => button.addEventListener("click", () => {
+        mainImage.src = button.dataset.image;
+        modal.querySelectorAll(".exchange-post-thumbnail").forEach(item => item.classList.toggle("is-active", item === button));
+      }));
+    },
+    postImageExists(url) {
+      return new Promise((resolve) => {
+        const image = new Image();
+        image.onload = () => resolve(true);
+        image.onerror = () => resolve(false);
+        image.src = url;
       });
     },
     getStatusClass(status) {
@@ -194,7 +236,7 @@ export default {
 </script>
 
 <style scoped>
-/* General */
+/* Legacy rules retained while the page migrates to the shared system. */
 .container {
   font-family: Arial, sans-serif;
   max-width: 800px;
@@ -280,5 +322,11 @@ button.bg-green-500 {
 
 button.bg-green-500:hover {
   background: #5ED6A9; /* Change to your desired color */
+}
+
+:global(.post-detail-image) {
+  max-width: min(420px, 80vw);
+  max-height: 300px;
+  object-fit: contain;
 }
 </style>

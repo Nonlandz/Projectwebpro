@@ -1,25 +1,29 @@
 <template>
   <Layout>
     <Nav />
-    <div class="container mx-auto px-4 flex flex-col items-center">
-      <h1 class="text-3xl font-bold mb-5 mt-16">Welcome to User Page</h1>
+    <div class="my-posts-page">
+      <section class="surface post-list-panel">
+      <h1 class="section-title">My posts</h1>
+      <p class="section-subtitle">Check the status of the items you posted.</p>
       <div>
-        <h2 class="text-2xl font-bold mb-2">Your Posts:</h2>
+        <h2 class="sr-only">Posts</h2>
         <ul class="post-list">
-          <li v-for="post in posts" :key="post.id" class="flex items-center mb-2">
-            <span class="mr-2">{{ post.title }} - <span :class="getStatusClass(post.status)">{{ post.status }}</span></span>
-            <button @click="showPostDetails(post.id)" class="px-2 py-1 bg-blue-500 text-white rounded-md ml-2">Details</button>
-            <button v-if="post.status === 'noneApprove'" @click="deletePost(post.id)" class="px-2 py-1 bg-red-500 text-white rounded-md ml-2">Delete</button>
+          <li v-for="post in posts" :key="post.id" class="item-row">
+            <span><strong class="block">{{ post.title }}</strong><span class="status" :class="post.status">{{ post.status }}</span><span v-if="post.exchangeEnded" class="status exchange-completed">Exchange completed</span></span>
+            <div class="item-actions"><button @click="showPostDetails(post.id)" class="button-secondary">Details</button>
+            <button v-if="post.status === 'noneApprove'" @click="deletePost(post.id)" class="button-danger">Delete</button></div>
           </li>
         </ul>
+        <p v-if="postError" role="alert">{{ postError }} <button @click="getPosts(userId)">Retry</button></p>
       </div>
+      </section>
     </div>
   </Layout>
 </template>
 
 <script>
 import Layout from "../components/Layout.vue";
-import axios from "axios";
+import axios from "../api";
 import Swal from "sweetalert2";
 import Nav from "../components/Nav.vue";
 
@@ -31,6 +35,7 @@ export default {
   data() {
     return {
       posts: [],
+      offset: 0, hasNext: false, loadingPosts: false, postError: "",
       userId: "", // Added userId data property
     };
   },
@@ -43,12 +48,13 @@ export default {
   },
   methods: {
     async getPosts(userId) {
+      this.loadingPosts = true; this.postError = "";
       try {
-        const response = await axios.get(`http://localhost:8080/api/posts?userId=${userId}`);
-        this.posts = response.data.filter(post => post.userId === userId);
+        const response = await axios.get("/posts", { params: { userId, offset: this.offset, limit: 20 } });
+        this.posts = response.data; this.hasNext = response.data.length === 20;
       } catch (error) {
-        console.error("Error fetching posts:", error);
-      }
+        this.postError = "Unable to load posts. Please try again.";
+      } finally { this.loadingPosts = false; }
     },
     async deletePost(postId) {
       try {
@@ -64,7 +70,7 @@ export default {
         });
 
         if (confirmed.isConfirmed) {
-          await axios.delete(`http://localhost:8080/api/posts/${postId}/${this.userId}`); // Use the userId data property
+          await axios.delete(`/posts/${postId}/${this.userId}`); // Use the userId data property
           this.posts = this.posts.filter(post => post.id !== postId);
           Swal.fire({
             title: "Post Deleted",
@@ -80,18 +86,65 @@ export default {
         });
       }
     },
-    showPostDetails(postId) {
+    async showPostDetails(postId) {
       const selectedPost = this.posts.find((post) => post.id === postId);
       if (selectedPost) {
+        const imageUrls = await this.postImageUrls(selectedPost);
+        const title = this.escapeHtml(selectedPost.title || "Untitled item");
+        const detail = this.escapeHtml(selectedPost.detail || "No description added yet.").replace(/\n/g, "<br>");
+        const status = this.escapeHtml(this.statusLabel(selectedPost.status));
         Swal.fire({
-          title: selectedPost.title,
+          title: "Item details",
           html: `
-            <strong>Status:</strong> ${selectedPost.status}<br>
-            <strong>Detail:</strong> ${selectedPost.detail}
-          `,
-          icon: "info",
+            ${imageUrls.length ? `<div class="exchange-post-gallery"><img class="exchange-post-detail-image" src="${imageUrls[0]}" alt="Image 1 for ${title}">${imageUrls.length > 1 ? `<div class="exchange-post-thumbnails">${imageUrls.map((url, index) => `<button type="button" class="exchange-post-thumbnail${index === 0 ? ' is-active' : ''}" data-image="${url}" aria-label="View image ${index + 1}"><img src="${url}" alt="Image ${index + 1}"></button>`).join("")}</div>` : ""}</div>` : '<div class="exchange-post-image-placeholder" aria-hidden="true">✦</div>'}
+            <div class="exchange-post-detail-content">
+              <span class="exchange-post-status exchange-post-status--${this.statusClass(selectedPost.status)}">${status}</span>
+              <h2>${title}</h2>
+              <p>${detail}</p>
+            </div>`,
+          showCloseButton: true,
+          confirmButtonText: "Done",
+          buttonsStyling: false,
+          customClass: {
+            popup: "exchange-post-modal",
+            title: "exchange-post-modal-label",
+            htmlContainer: "exchange-post-modal-body",
+            confirmButton: "exchange-post-modal-confirm",
+            closeButton: "exchange-post-modal-close",
+          },
+          didOpen: () => this.bindGalleryEvents(),
         });
       }
+    },
+    escapeHtml(value) {
+      return String(value).replace(/[&<>'"]/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" }[character]));
+    },
+    statusLabel(status) {
+      return ({ approve: "Approved", pending: "Pending review", noneApprove: "Not approved" })[status] || "Unknown status";
+    },
+    statusClass(status) {
+      return ({ approve: "approved", pending: "pending", noneApprove: "not-approved" })[status] || "unknown";
+    },
+    async postImageUrls(post) {
+      if (post.Images?.length) return post.Images.map(image => `/api/posts/${encodeURIComponent(post.id)}/images/${encodeURIComponent(image.id)}`);
+      const legacyUrl = `/api/posts/${encodeURIComponent(post.id)}/image`;
+      return await this.postImageExists(legacyUrl) ? [legacyUrl] : [];
+    },
+    bindGalleryEvents() {
+      const modal = Swal.getHtmlContainer();
+      const mainImage = modal?.querySelector(".exchange-post-detail-image");
+      modal?.querySelectorAll(".exchange-post-thumbnail").forEach(button => button.addEventListener("click", () => {
+        mainImage.src = button.dataset.image;
+        modal.querySelectorAll(".exchange-post-thumbnail").forEach(item => item.classList.toggle("is-active", item === button));
+      }));
+    },
+    postImageExists(url) {
+      return new Promise((resolve) => {
+        const image = new Image();
+        image.onload = () => resolve(true);
+        image.onerror = () => resolve(false);
+        image.src = url;
+      });
     },
     getStatusClass(status) {
       if (status === "approve") {
@@ -170,5 +223,11 @@ button.bg-red-500:hover {
 
 .text-red-500 {
   color: #FF5A5A;
+}
+
+:global(.post-detail-image) {
+  max-width: min(420px, 80vw);
+  max-height: 300px;
+  object-fit: contain;
 }
 </style>

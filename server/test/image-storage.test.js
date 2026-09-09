@@ -1,0 +1,30 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { storeImage, publicImageUrl, removeImage, legacyImage } from "../src/image-storage.js";
+
+test("cloud uploads validate files, keep credentials on the server, and support cleanup", async t => {
+  const original = { ...process.env };
+  t.after(() => { for (const key of ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_STORAGE_BUCKET"]) { if (original[key] === undefined) delete process.env[key]; else process.env[key] = original[key]; } });
+  process.env.SUPABASE_URL = "https://example.supabase.co";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "test-server-secret";
+  process.env.SUPABASE_STORAGE_BUCKET = "media";
+  const calls = [];
+  const mocked = t.mock.method(globalThis, "fetch", async (...args) => { calls.push(args); return new Response("{}", { status: 200 }); });
+  const file = { mimetype: "image/png", buffer: Buffer.from([137,80,78,71,13,10,26,10,0]) };
+  const objectPath = await storeImage("posts", "post1", file);
+  assert.match(objectPath, /^posts\/post1\/.+\.png$/);
+  assert.equal(calls[0][1].headers.Authorization, "Bearer test-server-secret");
+  assert.equal(calls[0][1].body, file.buffer);
+  assert.equal(publicImageUrl(objectPath), `https://example.supabase.co/storage/v1/object/public/media/${objectPath}`);
+  assert.ok(!publicImageUrl(objectPath).includes("test-server-secret"));
+  await removeImage(objectPath);
+  assert.equal(calls[1][1].method, "DELETE");
+  assert.deepEqual(JSON.parse(calls[1][1].body), { prefixes: [objectPath] });
+  await assert.rejects(storeImage("posts", "post1", { ...file, buffer: Buffer.from("fake PNG") }), { status: 400 });
+  await assert.rejects(storeImage("posts", "../escape", file), /Invalid image owner/);
+  assert.equal(await legacyImage("posts", "../escape"), null);
+  mocked.mock.mockImplementation(async () => new Response("denied", { status: 403 }));
+  await assert.rejects(storeImage("users", "user1", file), { status: 502 });
+  delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+  await assert.rejects(storeImage("posts", "post1", file), { status: 503 });
+});

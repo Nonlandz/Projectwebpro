@@ -1,0 +1,39 @@
+.login-experience { flex:1; background:#fff; color:#1d1d1f; font-family:Arial, Helvetica, sans-serif; }
+.login-nav { height:76px; max-width:1320px; margin:auto; padding:0 48px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid #e8e8ed; }
+.login-wordmark { font-size:22px; font-weight:700; letter-spacing:-1px; }
+.login-wordmark span { color:#0071e3; }
+.login-nav-link { font-size:13px; color:#515154; }
+.login-nav-link span { margin-left:8px; color:#0071e3; }
+.login-content { max-width:1320px; margin:auto; min-height:calc(100vh - 138px); display:grid; grid-template-columns:1.25fr 1fr; }
+.trade-story { background:#f5f5f7; margin:24px 0 24px 24px; border-radius:24px; padding:48px 0 26px; display:flex; flex-direction:column; justify-content:center; overflow:hidden; text-align:center; }
+.trade-copy { padding:0 24px; position:relative; z-index:1; }
+.trade-eyebrow { color:#6e6e73; font-size:10px; letter-spacing:2px; font-weight:700; margin:0 0 22px; }
+.trade-copy h1 { font-family:inherit; font-size:clamp(40px,4.3vw,62px); font-weight:700; line-height:1.04; letter-spacing:-2.8px; margin:0; }
+.trade-description { font-size:20px; color:#6e6e73; letter-spacing:-.4px; margin:20px 0 0; line-height:1.4; }
+.mobile-break { display:none; }
+.trade-image { width:100%; height:auto; aspect-ratio:3/2; object-fit:cover; mix-blend-mode:multiply; margin-top:14px; }
+.trade-caption { color:#6e6e73; font-size:11px; padding:0 24px; margin:12px 0 0; }
+.login-panel { display:flex; align-items:center; justify-content:center; padding:48px; }
+.login-form-content { width:100%; max-width:340px; }
+.login-symbol { width:48px; height:48px; display:grid; place-items:center; background:#f0f6ff; border-radius:14px; color:#0071e3; font-size:30px; margin-bottom:28px; }
+.login-panel h2 { font-family:inherit; font-size:34px; font-weight:700; letter-spacing:-1.2px; margin:0 0 10px; line-height:1.15; }
+.login-intro { font-size:14px; color:#6e6e73; margin:0 0 32px; line-height:1.5; }
+.signin-form { display:flex; flex-direction:column; gap:20px; }
+.login-field { display:grid; gap:8px; }
+.login-field label { font-size:12px; font-weight:600; color:#424245; }
+.login-field input { min-height:54px; border:1px solid #d2d2d7; border-radius:12px; padding:14px 16px; font-size:14px; background:#fff; }
+.login-field input::placeholder { color:#86868b; }
+.login-field input:focus { border-color:#0071e3; box-shadow:0 0 0 3px #0071e326; }
+.login-forgot { align-self:flex-end; color:#0071e3; font-size:12px; margin-top:-5px; background:none; border:0; padding:2px 0; }
+.login-submit { min-height:52px; width:100%; border-radius:999px; background:#0071e3; color:#fff; display:flex; justify-content:center; align-items:center; gap:16px; font-size:15px; font-weight:600; transition:background .15s; }
+.login-submit:hover { background:#0077ed; }
+.login-submit:disabled { opacity:.65; }
+.login-register { border-top:1px solid #e8e8ed; margin-top:32px; padding-top:26px; text-align:center; font-size:13px; }
+.login-register p { color:#6e6e73; margin:0 0 8px; }
+.login-register a { color:#0071e3; }
+.login-note { font-size:11px; color:#86868b; text-align:center; margin:36px 0 0; }
+.login-experience a:hover,.login-forgot:hover { text-decoration:underline; }
+.login-experience :is(a,button):focus-visible { outline:3px solid #0071e3; outline-offset:4px; }
+@media (min-width:1440px) { .trade-image { max-height:410px; object-fit:contain; } }
+@media (max-width:900px) { .login-nav { padding:0 24px; } .login-panel { padding:32px; } .trade-copy h1 { font-size:44px; } .trade-story { padding-top:36px; } .trade-description { font-size:17px; } }
+@media (max-width:680px) { .login-nav { height:64px; padding:0 20px; } .login-wordmark { font-size:19px; } .login-nav-link { font-size:11px; } .login-content { display:flex; flex-direction:column; } .login-panel { order:-1; padding:36px 24px 40px; } .login-form-content { max-width:380px; } .login-symbol { margin-bottom:20px; } .trade-story { margin:0 16px 24px; padding-top:36px; } .trade-copy h1 { font-size:40px; letter-spacing:-1.8px; } .trade-eyebrow { font-size:9px; margin-bottom:16px; } .trade-caption { line-height:1.5; } .login-note { margin-top:24px; } }

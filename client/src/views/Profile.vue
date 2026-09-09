@@ -2,16 +2,22 @@
 <template>
   <Layout>
       <Nav />
-  <div class="w-full h-screen flex items-center justify-center bg-[#e5e7e9]">
-    <div class="w-4/12 border flex flex-col items-center p-1 rounded-md shadow-md px-8 bg-white drop-shadow-lg">
+  <div class="profile-page">
+    <div class="surface profile-card">
       <div class="profile-upload content-center justify-center">
-        <h1 class="text-3xl text-slate-600 font-bold mb-10">Upload Profile Image</h1>
-        <input class="ml-36" type="file" @change="handleImagePreview">
-        <div v-if="previewImage">
-          <img :src="previewImage" alt="Profile Image" class="preview-image">
-        </div>
-        <button class="p-5 bg-[#EB6648] text-white px-5 py-1 rounded-md mt-5 hover:bg-[#df593a] drop-shadow-lg" @click="uploadProfileImage">Submit</button>
-        <button @click="this.$router.push('/')" class="p-5 bg-[#286aa2] text-white px-5 py-1 rounded-md mt-3 mb-8 hover:bg-[#1a456a] drop-shadow-lg">Back To Post</button>
+        <h1 class="section-title">Profile photo</h1><p class="section-subtitle">This appears beside your posts and comments.</p>
+        <img v-if="imagePreview" :src="imagePreview" class="profile-avatar" alt="Profile preview" />
+        <div v-else class="profile-avatar material-icons-outlined">person</div>
+        <input id="profile-image" type="file" accept="image/*" class="mb-4" @change="selectImage" />
+        <p v-if="errorMessage" class="mb-3 text-red-600">{{ errorMessage }}</p>
+        <button
+          :disabled="!selectedImage || uploading"
+          @click="uploadImage"
+          class="button-primary"
+        >
+          {{ uploading ? 'Uploading…' : 'Save Profile Image' }}
+        </button>
+        <button @click="$router.push('/')" class="button-secondary mt-3">Back to posts</button>
       </div>
     </div>
   </div>
@@ -19,80 +25,61 @@
 </template>
 
 <script>
-import { ref } from 'vue';
-import { useFirebaseStorage } from 'vuefire';
-import { ref as storageRef, getDownloadURL, uploadBytes } from 'firebase/storage';
-import { useRouter } from 'vue-router';
 import Layout from "../components/Layout.vue";
 import Nav from "../components/Nav.vue";
+import axios from "../api";
 
 export default {
   components: {
     Layout,
     Nav,
   },
-
-  setup() {
-    const storage = useFirebaseStorage();
-    const previewImage = ref(null);
-    const chooseImage = ref(null);
-
-    const router = useRouter();
-
-
-    const handleImagePreview = (event) => {
-      const file = event.target.files[0];
-      chooseImage.value = file;
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = () => {
-        previewImage.value = reader.result;
-      };
-    };
-
-    const uploadProfileImage = async () => {
-  try {
-    const file = chooseImage.value;
-    if (!file) {
-      throw new Error('No image selected');
-    }
-
-    const user = JSON.parse(localStorage.getItem('user')); // Get the user object from localStorage
-    if (!user || !user.id) {
-      throw new Error('User ID not found in localStorage');
-    }
-
-    const userId = user.id;
-    const filePath = `users/${userId}/${file.name}`;
-    const starsRef = storageRef(storage, filePath);
-    await uploadBytes(starsRef, file);
-
-    const downloadURL = await getDownloadURL(starsRef);
-    console.log('Profile image URL:', downloadURL);
-
-    router.push('/');
-
-    // Reset the input and preview
-    chooseImage.value = null;
-    previewImage.value = null;
-  } catch (error) {
-    console.log(error);
-
-    // Handle the error here, e.g. display an error message to the user
-    // or perform additional actions based on the specific error
-  }
-};
-
-
-
-
-
+  data() {
     return {
-      storage,
-      previewImage,
-      handleImagePreview,
-      uploadProfileImage,
+      selectedImage: null,
+      imagePreview: null,
+      uploading: false,
+      errorMessage: "",
     };
+  },
+  methods: {
+    selectImage(event) {
+      const file = event.target.files?.[0];
+      if (!file) return;
+      if (!file.type.startsWith("image/")) {
+        this.errorMessage = "Please select an image file.";
+        return;
+      }
+      if (this.imagePreview) URL.revokeObjectURL(this.imagePreview);
+      this.selectedImage = file;
+      this.imagePreview = URL.createObjectURL(file);
+      this.errorMessage = "";
+    },
+    async uploadImage() {
+      const userId = JSON.parse(localStorage.getItem("user"))?.id;
+      if (!userId || !this.selectedImage) return;
+
+      this.uploading = true;
+      this.errorMessage = "";
+      try {
+        const formData = new FormData();
+        formData.append("image", this.selectedImage);
+        formData.append("userId", userId);
+        const response = await axios.post(`/user/${userId}/profile-image`, formData);
+
+        const user = JSON.parse(localStorage.getItem("user"));
+        user.UserInfo = { ...(user.UserInfo || {}), profileImageUrl: response.data.profileImageUrl };
+        localStorage.setItem("user", JSON.stringify(user));
+        this.$router.push("/");
+      } catch (error) {
+        this.errorMessage = error.response?.data?.message || "Unable to upload your profile image.";
+      } finally {
+        this.uploading = false;
+      }
+    },
+  },
+  beforeUnmount() {
+    if (this.imagePreview) URL.revokeObjectURL(this.imagePreview);
   },
 };
 
@@ -108,7 +95,7 @@ export default {
 
 .preview-image {
   width: 200px;
-  height: auto;
+  height: 200px;
   margin-top: 20px;
 }
 </style>
